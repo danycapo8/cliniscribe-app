@@ -18,17 +18,34 @@ declare const jspdf: any;
 const RE_ACCENTS = new RegExp('[\\u0300-\\u036f]', 'g');
 const RE_PUNCTUATION = new RegExp('[¿?¡!.,;:]', 'g');
 const RE_WHITESPACE = new RegExp('\\s+');
-const RE_HYPOTHESIS_TITLE = new RegExp('hipótesis|hypotheses|diagnósticas|diagnósticos', 'i'); // Ampliado para capturar variantes
-const RE_STUDIES_TITLE = new RegExp('estudios|studies|exames|exámenes|solicitud', 'i'); // Ampliado
-const RE_HYPOTHESIS_LINE = new RegExp('^\\d+\\.\\s*(.*)$', 'i'); // Simplificado para capturar listas numeradas genéricas en diagnóstico
+// Ampliado para capturar variantes de títulos
+const RE_HYPOTHESIS_TITLE = new RegExp('hipótesis|hypotheses|diagnósticas|diagnósticos|análisis', 'i');
+const RE_STUDIES_TITLE = new RegExp('estudios|studies|exames|exámenes|solicitud', 'i');
+const RE_HYPOTHESIS_LINE = new RegExp('^\\d+\\.\\s*(.*)$', 'i');
 const RE_BOLD_MARKDOWN = new RegExp('\\*\\*(.*?)\\*\\*', 'g');
 const RE_NEWLINE = new RegExp('\\n', 'g');
 const RE_SUGGESTION_MATCH = new RegExp('^([^:]+):\\s*(.+)$');
+const RE_SIMPLE_JSON = /^[\s]*\{[\s\S]*\}[\s]*$/; //
+// Filtro para detectar bloques JSON que no deben renderizarse como texto
+const RE_JSON_BLOCK = /^```json[\s\S]*```$|^\s*\{[\s\S]*\}\s*$/;
 
 // --- Utility Functions ---
 const spanishStopWords = new Set(['el', 'la', 'los', 'las', 'un', 'una', 'y', 'o', 'pero', 'si', 'no', 'en', 'de', 'con', 'por', 'para']);
+
 const normalizeTextForMatching = (text: string): string => {
     return text.toLowerCase().normalize("NFD").replace(RE_ACCENTS, "").replace(RE_PUNCTUATION, "").split(RE_WHITESPACE).filter(w => !spanishStopWords.has(w)).join(" ").trim();
+};
+
+// Helper Global para renderizar texto con negritas
+const renderBoldText = (text: string) => {
+    if (!text) return null;
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, index) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+            return <strong key={index} className="font-bold text-sky-300">{part.slice(2, -2)}</strong>;
+        }
+        return <span key={index}>{part}</span>;
+    });
 };
 
 // --- Types ---
@@ -42,8 +59,8 @@ const CopyButton: React.FC<{ text: string; className?: string; title?: string }>
     const [copied, setCopied] = useState(false);
     const handleCopy = (e: React.MouseEvent) => {
         e.stopPropagation();
-        // LIMPIEZA ANTES DE COPIAR: Quitamos asteriscos y espacios extra
-        const cleanText = text.replace(/\*\*/g, '').trim();
+        // Limpieza al copiar: quitar asteriscos
+        const cleanText = text ? text.replace(RE_BOLD_MARKDOWN, '$1').trim() : "";
         navigator.clipboard.writeText(cleanText);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
@@ -55,7 +72,6 @@ const CopyButton: React.FC<{ text: string; className?: string; title?: string }>
     );
 };
 
-// ... (SuggestionsPanel se mantiene IDÉNTICO) ...
 const SuggestionsPanel: React.FC<{ questions: SuggestedQuestion[]; isGenerating: boolean; error: string | null; onMarkAsAsked: (text: string) => void; onDismiss: (text: string) => void; t: any }> = ({ questions, isGenerating, error, onMarkAsAsked, onDismiss, t }) => {
     const categoryOrder = useMemo(() => [t('category_current_illness'), t('category_systems_review'), t('category_history')], [t]);
     const { groupedQuestions, hasPending, askedCount, totalCount } = useMemo(() => {
@@ -77,7 +93,7 @@ const SuggestionsPanel: React.FC<{ questions: SuggestedQuestion[]; isGenerating:
                     <div key={category}>
                         <h4 className="text-[10px] font-black uppercase mb-3 text-slate-500 tracking-widest sticky top-0 bg-slate-900/90 backdrop-blur py-1 z-10">{category}</h4>
                         <div className="space-y-2">
-                            {items.map((q, i) => (
+                            {(items as SuggestedQuestion[]).map((q, i) => (
                                 <div key={i} className="group flex justify-between items-start bg-slate-800/40 hover:bg-slate-800/80 border border-slate-700/50 rounded-xl p-4 transition-all">
                                     <p className="text-sm text-slate-200">{q.text}</p>
                                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2 shrink-0">
@@ -101,7 +117,6 @@ const SuggestionsPanel: React.FC<{ questions: SuggestedQuestion[]; isGenerating:
     );
 };
 
-// ... (InputPanel se mantiene IDÉNTICO) ...
 const InputPanel: React.FC<{ 
     context: ConsultationContext; onContextChange: any; transcript: string; onTranscriptChange: any; onGenerate: any; onClear: any; isLoading: boolean; isRecording: boolean; onRecordToggle: any; uploadedFiles: UploadedFile[]; onFilesChange: any; onRemoveFile: any; onPreviewFile: any; t: any 
 }> = ({ context, onContextChange, transcript, onTranscriptChange, onGenerate, onClear, isLoading, isRecording, onRecordToggle, uploadedFiles, onFilesChange, onRemoveFile, onPreviewFile, t }) => {
@@ -212,7 +227,54 @@ const InputPanel: React.FC<{
   );
 };
 
-// --- AQUI ESTÁ LA MEJORA: ClinicalNoteOutput MODIFICADO PARA RENDERIZADO INTELIGENTE ---
+// --- ALERTS PANEL ---
+interface AlertsPanelProps {
+    alerts: ClinicalAlert[];
+    t: (key: string, options?: { [key: string]: string | number }) => string;
+}
+
+const AlertsPanel: React.FC<AlertsPanelProps> = ({ alerts, t }) => {
+    if (!alerts || alerts.length === 0) {
+        return null;
+    }
+
+    const getAlertColors = (severity: string) => {
+        const sev = severity?.toLowerCase() || 'low';
+        if (sev === 'high') return 'bg-red-900/50 border-red-700/80 text-red-300';
+        if (sev === 'medium') return 'bg-amber-900/50 border-amber-700/80 text-amber-300';
+        return 'bg-yellow-900/50 border-yellow-700/80 text-yellow-300';
+    };
+
+     const getAlertIconColor = (severity: string) => {
+        const sev = severity?.toLowerCase() || 'low';
+        if (sev === 'high') return 'text-red-400';
+        if (sev === 'medium') return 'text-amber-400';
+        return 'text-yellow-400';
+    };
+
+    return (
+        <div className="mb-6 space-y-3">
+            <h3 className="text-base font-semibold text-gray-200 flex items-center">
+                <AlertTriangleIcon className="h-5 w-5 mr-2 text-amber-400" />
+                {t('clinical_alerts_title')}
+            </h3>
+            {alerts.map((alert, index) => (
+                <div key={index} className={`p-3.5 border rounded-lg ${getAlertColors(alert.severity)}`}>
+                    <div className="flex items-start">
+                        <AlertTriangleIcon className={`h-5 w-5 mr-3 flex-shrink-0 mt-0.5 ${getAlertIconColor(alert.severity)}`} />
+                        <div>
+                            <p className="font-semibold text-sm text-white">{alert.title} <span className="text-xs font-normal opacity-80">({alert.type})</span></p>
+                            <p className="text-sm mt-1">{alert.details}</p>
+                            <p className="text-xs mt-2 opacity-80"><strong className="font-semibold">{t('recommendation')}:</strong> {alert.recommendation}</p>
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+// --- ClinicalNoteOutput (MEJORADO: Oculta JSON, Copia Smart) ---
 const ClinicalNoteOutput: React.FC<{ note: string, t: any }> = ({ note, t }) => {
     const sections = useMemo(() => {
         if (!note) return { disclaimer: '', sections: [] };
@@ -238,14 +300,20 @@ const ClinicalNoteOutput: React.FC<{ note: string, t: any }> = ({ note, t }) => 
         <div className="space-y-6 pb-10">
              {sections.disclaimer && <div className="text-xs text-slate-500 italic border-b border-slate-800 pb-3">{sections.disclaimer}</div>}
             {sections.sections.map((section, idx) => {
+                // --- FILTRO CRÍTICO: OCULTAR BLOQUES TÉCNICOS (JSON) ---
+                // Si el contenido es el JSON de alertas, no lo mostramos en la nota visual
+                if (section.content.includes('{"type":') || section.content.includes('"alerta_clinica"') || RE_SIMPLE_JSON.test(section.content)) {
+                    return null;
+                }
+                // ----------------------------------------------------------------
+
                 const isHypothesis = RE_HYPOTHESIS_TITLE.test(section.title);
                 const isStudies = RE_STUDIES_TITLE.test(section.title);
                 
                 // LÓGICA DE COPIADO INTELIGENTE
                 let textToCopy = section.content;
                 if (isStudies) {
-                    // Si es exámenes, copiamos solo la lista, no la justificación
-                    const parts = section.content.split(t('studies_justification_separator_instruction')); 
+                    const parts = section.content.split('---JUSTIFICACIÓN---'); 
                     if (parts.length > 0) textToCopy = parts[0].trim(); 
                 }
 
@@ -261,31 +329,24 @@ const ClinicalNoteOutput: React.FC<{ note: string, t: any }> = ({ note, t }) => 
                        <div className="text-slate-300 leading-relaxed text-sm">
                            {isHypothesis ? (
                                <div className="space-y-3">
-                                   {/* PARSING ESPECÍFICO PARA HIPÓTESIS (LISTAS) */}
                                    {section.content.split('\n').map((line, lIdx) => {
-                                       // Regex flexible para "1. Nombre Diagnóstico" o "Hypothesis 1: Nombre"
-                                       const hypMatch = line.match(RE_HYPOTHESIS_LINE) || line.match(/^Hypothesis\s+\d+:\s*(.*)$/i);
-                                       
+                                       const hypMatch = line.match(RE_HYPOTHESIS_LINE);
                                        if (hypMatch) {
-                                           // Si es una línea de diagnóstico, extraemos solo el nombre para el botón
                                            const diagName = hypMatch[1].trim();
                                            return (
                                                <div key={lIdx} className="flex flex-wrap items-center gap-2 bg-slate-900/60 p-3 rounded-lg border border-slate-800 shadow-sm">
                                                    <strong className="text-sky-100 font-semibold">{line.split(/\.|:/)[0]}:</strong>
-                                                   <span className="text-sky-300 font-medium flex-grow" dangerouslySetInnerHTML={{ __html: diagName.replace(RE_BOLD_MARKDOWN, '<strong class="text-sky-200 font-bold">$1</strong>') }} />
-                                                   {/* BOTÓN DE COPIADO: Copia SOLO el nombre del diagnóstico limpio */}
+                                                   <span className="text-sky-300 font-medium flex-grow" dangerouslySetInnerHTML={{ __html: renderBoldText(diagName)?.map(e => typeof e === 'string' ? e : e.props.children).join('') || diagName }} />
                                                    <CopyButton text={diagName} className="hover:bg-slate-800 p-1.5" title="Copiar solo diagnóstico" />
                                                </div>
                                            )
                                        }
-                                       // Si no es diagnóstico (ej. Evidencia), se muestra en gris y se renderiza negrita si hay
-                                       if (line.trim()) return <div key={lIdx} className="pl-4 border-l-2 border-slate-700 ml-1 text-xs text-slate-400 italic mt-1" dangerouslySetInnerHTML={{ __html: line.replace(RE_BOLD_MARKDOWN, '<strong class="text-slate-200 font-semibold">$1</strong>') }} />
+                                       if (line.trim()) return <div key={lIdx} className="pl-4 border-l-2 border-slate-700 ml-1 text-xs text-slate-400 italic mt-1">{renderBoldText(line)}</div>;
                                        return null;
                                    })}
                                </div>
                            ) : (
-                               // RENDERIZADO GENÉRICO: Transforma **text** en <strong>text</strong>
-                               <div dangerouslySetInnerHTML={{ __html: section.content.replace(RE_NEWLINE, '<br/>').replace(RE_BOLD_MARKDOWN, '<strong class="text-white font-semibold">$1</strong>') }} />
+                               <div>{renderBoldText(section.content)}</div>
                            )}
                        </div>
                     </div>
@@ -295,7 +356,6 @@ const ClinicalNoteOutput: React.FC<{ note: string, t: any }> = ({ note, t }) => 
     )
 }
 
-// ... (HistoryPanel y resto de componentes se mantienen IDÉNTICOS) ...
 const HistoryPanel: React.FC<{ history: HistoricalNote[], onLoad: any, onDelete: any, onClearHistory: any, viewingId: any, t: any }> = ({ history, onLoad, onDelete, onClearHistory, viewingId, t }) => {
     return (
         <div className="space-y-4 p-4 pb-10">
@@ -333,8 +393,6 @@ const HistoryPanel: React.FC<{ history: HistoricalNote[], onLoad: any, onDelete:
         </div>
     );
 }
-
-// ... (App component main logic se mantiene IDÉNTICO) ...
 
 const App: React.FC = () => {
   const [session, setSession] = useState<Session | null>(null);
@@ -446,12 +504,41 @@ const App: React.FC = () => {
           const fileParts: FilePart[] = []; for (const uploaded of uploadedFiles) { const base64 = await new Promise<string>((resolve) => { const reader = new FileReader(); reader.onloadend = () => resolve((reader.result as string).split(',')[1]); reader.readAsDataURL(uploaded.file); }); fileParts.push({ mimeType: uploaded.file.type, data: base64 }); }
           const stream = await generateClinicalNoteStream(profile, { ...context, additionalContext: "" }, transcript, fileParts, t);
           let fullText = ''; for await (const chunk of stream) { if (chunk.text) { fullText += chunk.text; setGeneratedNote(prev => prev + chunk.text); } }
-          const alertsStart = '&&&ALERTS_JSON_START&&&'; const alertsEnd = '&&&ALERTS_JSON_END&&&'; const startIndex = fullText.indexOf(alertsStart);
-          let finalNote = fullText; let parsedAlerts: ClinicalAlert[] = [];
-          if (startIndex !== -1) { try { parsedAlerts = JSON.parse(fullText.substring(startIndex + alertsStart.length, fullText.indexOf(alertsEnd))); setAlerts(parsedAlerts); } catch (e) {} finalNote = fullText.substring(0, startIndex).trim(); setGeneratedNote(finalNote); }
-          const newHistoryNote: HistoricalNote = { id: Date.now().toString(), timestamp: Date.now(), context: { ...context }, profile: { ...profile }, note: finalNote, alerts: parsedAlerts };
+          
+          // PARSING ROBUSTO DE ALERTAS Y LIMPIEZA
+          const alertsStartMarker = '&&&ALERTS_JSON_START&&&';
+          const alertsEndMarker = '&&&ALERTS_JSON_END&&&';
+          
+          const startIndex = fullText.indexOf(alertsStartMarker);
+          const endIndex = fullText.indexOf(alertsEndMarker);
+
+          if (startIndex !== -1 && endIndex !== -1) {
+              const jsonString = fullText.substring(startIndex + alertsStartMarker.length, endIndex).trim();
+              try {
+                  let parsedData = JSON.parse(jsonString);
+                  // Normalización si devuelve objeto único en vez de array
+                  if (!Array.isArray(parsedData)) {
+                      parsedData = parsedData.alerta_clinica ? [parsedData.alerta_clinica] : [parsedData];
+                  }
+                  const normalizedAlerts: ClinicalAlert[] = parsedData.map((item: any) => ({
+                      type: item.type || item.tipo_alerta || 'Alerta',
+                      severity: item.severity || (item.prioridad?.includes('MÁXIMA') ? 'High' : 'Medium'),
+                      title: item.title || item.tipo_alerta || 'Alerta Detectada',
+                      details: item.details || item.mensaje || '',
+                      recommendation: item.recommendation || (Array.isArray(item.acciones_recomendadas) ? item.acciones_recomendadas.join('. ') : item.acciones_recomendadas) || ''
+                  }));
+                  setAlerts(normalizedAlerts);
+              } catch (e) { console.error("Error parsing alerts JSON:", e); }
+              // Limpieza final: Cortamos el texto ANTES del bloque de alertas
+              setGeneratedNote(fullText.substring(0, startIndex).trim());
+          } else {
+              setGeneratedNote(fullText);
+          }
+
+          const newHistoryNote: HistoricalNote = { id: Date.now().toString(), timestamp: Date.now(), context: { ...context }, profile: { ...profile }, note: fullText.split('&&&')[0].trim(), alerts: alerts };
           setHistory(prev => [newHistoryNote, ...prev]);
           if (session?.user) { const {data} = await supabase.from('profiles').select('total_notes_generated').eq('id', session.user.id).single(); if(data) supabase.from('profiles').update({ total_notes_generated: (data.total_notes_generated || 0) + 1 }).eq('id', session.user.id); }
+
       } catch (error) { setGeneratedNote(prev => prev + `\n\n❌ ${parseAndHandleGeminiError(error, t('error_generating_note'))}`); } finally { setIsLoading(false); }
   };
 
@@ -470,7 +557,35 @@ const App: React.FC = () => {
   const handleMarkQuestion = (text: string) => setSuggestedQuestions(prev => prev.map(q => q.text === text ? { ...q, asked: true } : q));
   const handleDismissQuestion = (text: string) => setSuggestedQuestions(prev => prev.filter(q => q.text !== text));
   const loadHistoryNote = (note: HistoricalNote) => { setContext(note.context); setGeneratedNote(note.note); setAlerts(note.alerts); setViewingHistoryNoteId(note.id); setActiveTab('note'); };
-  const exportToPDF = () => { if (!generatedNote) return; const doc = new jspdf.jsPDF(); doc.setFontSize(18); doc.text(t('pdf_title'), 10, 15); doc.setFontSize(10); doc.text(`${t('pdf_generated_by')} ${new Date().toLocaleDateString(t('pdf_date_locale'))}`, 10, 22); doc.setFontSize(12); doc.text(`${t('pdf_patient')}: ${context.age} ${t('pdf_years')}, ${context.sex}`, 10, 30); if (context.additionalContext) doc.text(`${t('pdf_additional_context')}: ${context.additionalContext}`, 10, 38); const splitText = doc.splitTextToSize(generatedNote, 180); doc.text(splitText, 10, 50); if (alerts.length > 0) { doc.addPage(); doc.setFontSize(14); doc.setTextColor(220, 38, 38); doc.text(t('pdf_alerts_title'), 10, 20); doc.setTextColor(0); let y = 30; alerts.forEach(alert => { doc.setFontSize(12); doc.setFont(undefined, 'bold'); doc.text(`${alert.type} (${alert.severity})`, 10, y); y += 7; doc.setFont(undefined, 'normal'); doc.text(alert.title, 10, y); y += 7; const details = doc.splitTextToSize(alert.details, 180); doc.text(details, 10, y); y += (details.length * 5) + 5; }); } doc.save('CliniScribe_Note.pdf'); };
+  
+  // --- EXPORT TO PDF ---
+  const exportToPDF = () => { if (!generatedNote) return; const doc = new jspdf.jsPDF(); doc.setFontSize(18); doc.text(t('pdf_title'), 10, 15); doc.setFontSize(10); doc.text(`${t('pdf_generated_by')} ${new Date().toLocaleDateString(t('pdf_date_locale'))}`, 10, 22); doc.setFontSize(12); doc.text(`${t('pdf_patient')}: ${context.age} ${t('pdf_years')}, ${context.sex}`, 10, 30); if (context.additionalContext) doc.text(`${t('pdf_additional_context')}: ${context.additionalContext}`, 10, 38); const splitText = doc.splitTextToSize(generatedNote.replace(RE_BOLD_MARKDOWN, '$1'), 180); doc.text(splitText, 10, 50); if (alerts.length > 0) { doc.addPage(); doc.setFontSize(14); doc.setTextColor(220, 38, 38); doc.text(t('pdf_alerts_title'), 10, 20); doc.setTextColor(0); let y = 30; alerts.forEach(alert => { doc.setFontSize(12); doc.setFont(undefined, 'bold'); doc.text(`${alert.type} (${alert.severity})`, 10, y); y += 7; doc.setFont(undefined, 'normal'); doc.text(alert.title, 10, y); y += 7; const details = doc.splitTextToSize(alert.details, 180); doc.text(details, 10, y); y += (details.length * 5) + 5; }); } doc.save('CliniScribe_Note.pdf'); };
+
+  // --- EXPORT TO WORD ---
+  const handleExportWord = () => {
+    if (!generatedNote) return;
+    const cleanText = generatedNote.replace(RE_BOLD_MARKDOWN, '$1').replace(/---JUSTIFICACIÓN---/g, '\n\nJUSTIFICACIÓN CLÍNICA:\n\n');
+    const locale = t('pdf_date_locale');
+    const dateStr = new Date().toLocaleDateString(locale);
+    const fullHtml = `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head><meta charset='utf-8'><title>CliniScribe</title></head>
+        <body style="font-family: Calibri, sans-serif;">
+            <h1>CliniScribe - Borrador Clínico</h1>
+            <p>Generado el ${dateStr}</p>
+            <hr>
+            <pre style="white-space: pre-wrap; font-family: Calibri, sans-serif;">${cleanText}</pre>
+        </body>
+        </html>
+    `;
+    const blob = new Blob([fullHtml], { type: 'application/msword' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `ClinicalNote-${Date.now()}.doc`; 
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   if (authLoading) return <div className="min-h-screen bg-[#020617] flex items-center justify-center"><SpinnerIcon className="h-8 w-8 text-sky-500 animate-spin" /></div>;
   if (!isSupabaseConfigured) return <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center text-center p-6 text-white"><AlertTriangleIcon className="h-12 w-12 text-rose-500 mb-4" /><h2>Error Config</h2></div>;
@@ -572,6 +687,7 @@ const App: React.FC = () => {
                                 {activeTab === 'note' && generatedNote && (
                                     <div className="flex gap-2">
                                         <button onClick={() => navigator.clipboard.writeText(generatedNote.replace(/\*\*/g, ''))} className="text-xs text-slate-400 hover:text-white flex items-center gap-1 px-3 py-1.5 rounded hover:bg-white/5 transition"><CopyIcon className="h-3 w-3"/> Copiar</button>
+                                        <button onClick={handleExportWord} className="text-xs text-slate-400 hover:text-white flex items-center gap-1 px-3 py-1.5 rounded hover:bg-white/5 transition" title={t('export_word_aria')}><FileDownIcon className="h-3 w-3"/> Word</button>
                                         <button onClick={exportToPDF} className="text-xs text-slate-400 hover:text-white flex items-center gap-1 px-3 py-1.5 rounded hover:bg-white/5 transition"><FileDownIcon className="h-3 w-3"/> PDF</button>
                                     </div>
                                 )}
