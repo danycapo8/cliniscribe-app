@@ -537,7 +537,21 @@ const App: React.FC = () => {
 
           const newHistoryNote: HistoricalNote = { id: Date.now().toString(), timestamp: Date.now(), context: { ...context }, profile: { ...profile }, note: fullText.split('&&&')[0].trim(), alerts: alerts };
           setHistory(prev => [newHistoryNote, ...prev]);
-          if (session?.user) { const {data} = await supabase.from('profiles').select('total_notes_generated').eq('id', session.user.id).single(); if(data) supabase.from('profiles').update({ total_notes_generated: (data.total_notes_generated || 0) + 1 }).eq('id', session.user.id); }
+          
+          // --- CORRECCIÓN: GUARDAR EN SUPABASE PARA ACTIVAR EL TRIGGER ---
+          if (session?.user) {
+              const { error: saveError } = await supabase
+                  .from('historical_notes')
+                  .insert({
+                      user_id: session.user.id,
+                      content: fullText.split('&&&')[0].trim()
+                  });
+
+              if (saveError) {
+                  console.error("Error guardando nota en Supabase:", saveError);
+              }
+          }
+          // -------------------------------------------------------------
 
       } catch (error) { setGeneratedNote(prev => prev + `\n\n❌ ${parseAndHandleGeminiError(error, t('error_generating_note'))}`); } finally { setIsLoading(false); }
   };
