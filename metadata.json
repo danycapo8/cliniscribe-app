@@ -1,0 +1,7 @@
+{
+  "name": "CliniScribe-New",
+  "description": "A robust, empty React + TypeScript starter template configured with Tailwind CSS and best practices, ready for development.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

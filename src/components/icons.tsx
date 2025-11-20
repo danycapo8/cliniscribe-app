@@ -1,0 +1,27 @@
+import { 
+  Feather as QuillIcon, 
+  Sparkles as SparklesIcon, 
+  Trash as TrashIcon, 
+  Copy as CopyIcon, 
+  Loader2 as SpinnerIcon, 
+  Mic as MicrophoneIcon, 
+  Square as StopIcon, 
+  Upload as UploadIcon, 
+  Lightbulb as LightbulbIcon, 
+  CheckCircle as CheckCircleIcon, 
+  Check as CheckIcon, 
+  X as XIcon, 
+  History as HistoryIcon, 
+  AlertTriangle as AlertTriangleIcon, 
+  FileDown as FileDownIcon, 
+  Eye as EyeIcon, 
+  User as UserIcon, 
+  FileText as NotesIcon, 
+  ChevronLeft as ChevronLeftIcon 
+} from 'lucide-react';
+
+export { 
+  QuillIcon, SparklesIcon, TrashIcon, CopyIcon, SpinnerIcon, MicrophoneIcon, StopIcon, 
+  UploadIcon, LightbulbIcon, CheckCircleIcon, CheckIcon, XIcon, HistoryIcon, 
+  AlertTriangleIcon, FileDownIcon, EyeIcon, UserIcon, NotesIcon, ChevronLeftIcon 
+};
