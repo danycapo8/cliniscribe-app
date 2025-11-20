@@ -61,10 +61,11 @@ Tu objetivo: Generar una nota clínica técnica, limpia y **estructurada para se
 REGLAS DE FORMATO CRÍTICAS:
 1.  **PRIVACIDAD ABSOLUTA:** OMITE el nombre, edad, sexo y cualquier otra información personal del paciente en el cuerpo de la nota. Empieza directamente con el contenido clínico.
 2.  **CIE-10 (RIESGO ACEPTADO):** La IA DEBE auto-asignar el código CIE-10 más probable y específico para cada diagnóstico. ADVERTENCIA: Esta codificación es un borrador y debe ser validada por el médico.
-3.  **REGLA DE VOZ (CRÍTICA):** - Secciones 1, 2, y 3 deben ser **objetivas y en TERCERA PERSONA**.
-    - Secciones 4, 5, y 6 deben ser **directas y en SEGUNDA PERSONA (Usted/Tú)**.
-4.  **REGLA DE BOLDING ESTRICTO:** Usa negritas SOLO en **Títulos de campos**.
+3.  **REGLA DE VOZ (CRÍTICA):** - Secciones 1, 2, y 3 deben ser **objetivas y en TERCERA PERSONA** (para el archivo médico).
+    - Secciones 4, 5, y 6 deben ser **directas y en SEGUNDA PERSONA (Usted/Tú)**, para ser copiadas directamente como instrucciones para el paciente.
+4.  **REGLA DE BOLDING ESTRICTO:** Usa negritas SOLAMENTE en **Títulos de campos** y **Hallazgos POSITIVOS**.
 5.  **REGLA DE LISTADO VERTICAL (CLAVE):** Cada elemento de la lista DEBE ir en su propia línea.
+6.  **REGLA DE CONSISTENCIA (NUEVA):** La decisión de manejo (Plan/Exámenes) DEBE ser idéntica para entradas idénticas. Ancla las decisiones (ej. contraste, dosis) a la **evidencia positiva o negativa** contenida en el Examen Físico/Anamnesis.
 
 ESTRUCTURA DE SALIDA (SOAP Clínico Detallado - MANTENIENDO ORDEN SEMIOLÓGICO):
 
@@ -98,16 +99,16 @@ Ejemplo:
 - **Derivación a:** [Si aplica, mencionar Especialista Médico o **Profesional No Médico**.]
 - **Alarma (CRÍTICA):** ACUDIR A URGENCIAS INMEDIATAMENTE si presenta: [Listar 2-3 signos de alarma CONCRETOS].
 
-## 5. Indicaciones Farmacológicas Detalladas
+## 5. Indicaciones Farmacológicas
 (Listar sugerencias de tratamiento. DETALLAR TODOS LOS PARÁMETROS. **VOZ: Dirigido a USTED/TÚ**):
-1. [Presentación del medicamento], [Dosis exacta], [Vía de administración], [Cada X horas], [Duración del tratamiento].
+1. **[Presentación del medicamento]**, [**Dosis** exacta], [**Vía** de administración], [Cada **X horas**], [**Duración** del tratamiento].
 
 ## 6. Solicitud de Exámenes
 (VOZ: Dirigido al LAB o al PACIENTE/TÚ):
 [Lista numerada EXCLUSIVA de nombres de exámenes para copiar]
 
 ---JUSTIFICACIÓN---
->> Justificación Clínica Contundente: [Análisis profundo explicando el porqué de la solicitud. ESTE TEXTO DEBE COMENZAR EN UNA NUEVA LÍNEA JUSTO DESPUÉS DEL SEPARADOR.]
+>> Justificación Clínica Contundente: [Análisis profundo explicando el porqué de la solicitud y qué se busca descartar o confirmar. ESTE TEXTO DEBE COMENZAR EN UNA NUEVA LÍNEA JUSTO DESPUÉS DEL SEPARADOR.]
 
 FORMATO JSON OBLIGATORIO (Alertas):
 &&&ALERTS_JSON_START&&&
@@ -173,11 +174,11 @@ export async function* generateClinicalNoteStream(
 
     try {
         const responseStream = await ai.models.generateContentStream({
-            model: MODEL_ID, // Usa MODEL_ID consolidado
+            model: MODEL_ID, 
             contents: [{ role: 'user', parts }],
             config: {
                 systemInstruction: finalSystem,
-                temperature: 0.4,
+                temperature: 0.0, // AJUSTE FINAL: Mínima creatividad para máxima consistencia.
             }
         });
 
