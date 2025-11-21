@@ -17,11 +17,15 @@ import {
   Eye as EyeIcon, 
   User as UserIcon, 
   FileText as NotesIcon, 
-  ChevronLeft as ChevronLeftIcon 
+  ChevronLeft as ChevronLeftIcon,
+  Moon as MoonIcon,
+  Sun as SunIcon,
+  LogOut as LogOutIcon // <--- Nuevo
 } from 'lucide-react';
 
 export { 
   QuillIcon, SparklesIcon, TrashIcon, CopyIcon, SpinnerIcon, MicrophoneIcon, StopIcon, 
   UploadIcon, LightbulbIcon, CheckCircleIcon, CheckIcon, XIcon, HistoryIcon, 
-  AlertTriangleIcon, FileDownIcon, EyeIcon, UserIcon, NotesIcon, ChevronLeftIcon 
+  AlertTriangleIcon, FileDownIcon, EyeIcon, UserIcon, NotesIcon, ChevronLeftIcon,
+  MoonIcon, SunIcon, LogOutIcon
 };

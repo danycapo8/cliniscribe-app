@@ -28,13 +28,11 @@ export interface ClinicalAlert {
 // Model Constants
 const MODEL_ID = 'gemini-2.5-flash'; 
 
-// Helper function to get API Key safely using Vite standards with fallback
 const getApiKey = (): string => {
     try {
         // @ts-ignore
         return import.meta.env.VITE_GEMINI_API_KEY || "AIzaSyBdx5HSliLOfh1BcpPvS6zgwO3GVNiiG38";
     } catch (e) {
-        // Fallback in case import.meta throws error in specific runtimes
         return "AIzaSyBdx5HSliLOfh1BcpPvS6zgwO3GVNiiG38";
     }
 };
@@ -42,13 +40,12 @@ const getApiKey = (): string => {
 export const parseAndHandleGeminiError = (error: any, defaultMsg: string) => {
     console.error("Gemini Error:", error);
     if (error.message) {
-        // Remove standard Google API error prefixes
         return error.message.replace(new RegExp('\\[.*?\\]\\s*'), '');
     }
     return defaultMsg;
 };
 
-// --- FUNCIÓN DE PROMPT FINAL (NOTA CLÍNICA) ---
+// --- FUNCIÓN DE PROMPT FINAL ---
 function getNotePrompt(profile: Profile, context: ConsultationContext, transcript: string, fileParts: FilePart[], t: (key: string) => string) {
     const languageName = profile.language === 'pt' ? 'Portuguese' : profile.language === 'en' ? 'English' : 'Spanish';
 
@@ -60,55 +57,50 @@ Tu objetivo: Generar una nota clínica técnica, limpia y **estructurada para se
 
 REGLAS DE FORMATO CRÍTICAS:
 1.  **PRIVACIDAD ABSOLUTA:** OMITE el nombre, edad, sexo y cualquier otra información personal del paciente en el cuerpo de la nota. Empieza directamente con el contenido clínico.
-2.  **CIE-10 (RIESGO ACEPTADO):** La IA DEBE auto-asignar el código CIE-10 más probable y específico para cada diagnóstico. ADVERTENCIA: Esta codificación es un borrador y debe ser validada por el médico.
-3.  **REGLA DE VOZ (CRÍTICA):** - Secciones 1, 2, y 3 deben ser **objetivas y en TERCERA PERSONA** (para el archivo médico).
-    - Secciones 4, 5, y 6 deben ser **directas y en SEGUNDA PERSONA (Usted/Tú)**, para ser copiadas directamente como instrucciones para el paciente.
+2.  **CIE-10 (RIESGO ACEPTADO):** La IA DEBE auto-asignar el código CIE-10 más probable y específico para cada diagnóstico.
+3.  **REGLA DE VOZ (CRÍTICA):** - Secciones 1, 2, y 3 deben ser **objetivas y en TERCERA PERSONA**.
+    - Secciones 4, 5, y 6 deben ser **directas y en SEGUNDA PERSONA (Usted/Tú)**.
 4.  **REGLA DE BOLDING ESTRICTO:** Usa negritas SOLAMENTE en **Títulos de campos** y **Hallazgos POSITIVOS**.
 5.  **REGLA DE LISTADO VERTICAL (CLAVE):** Cada elemento de la lista DEBE ir en su propia línea.
-6.  **REGLA DE CONSISTENCIA (NUEVA):** La decisión de manejo (Plan/Exámenes) DEBE ser idéntica para entradas idénticas. Ancla las decisiones (ej. contraste, dosis) a la **evidencia positiva o negativa** contenida en el Examen Físico/Anamnesis.
+6.  **IDIOMA:** Todo el contenido debe estar en ${languageName}.
 
-ESTRUCTURA DE SALIDA (SOAP Clínico Detallado - MANTENIENDO ORDEN SEMIOLÓGICO):
+ESTRUCTURA DE SALIDA (SOAP Clínico Detallado):
 
-## 1. Anamnesis
-(Mantener la estructura de lista de campos, cada uno en una línea):
-- **Motivo de Consulta:** [Razón principal]
-- **Antecedentes Mórbidos:** [Enfermedades crónicas, cirugías. Si no refiere, indicar 'No refiere'.]
-- **Fármacos en Uso:** [Medicamentos actuales. Si no refiere, indicar 'No refiere'.]
-- **Alergias:** [Alergias. Si no refiere, indicar 'No refiere'.]
-- **Cuadro Actual:** [Párrafo narrativo conciso y cronológico de la HDA.]
+## 1. ${t('section_anamnesis')}
+(Lista vertical):
+- **${t('field_reason')}:** [Texto]
+- **${t('field_history')}:** [Texto]
+- **${t('field_meds')}:** [Texto]
+- **${t('field_allergies')}:** [Texto]
+- **${t('field_current_illness')}:** [Párrafo narrativo]
 
-## 2. Examen Físico
-(Orden Semiológico. **REGLA CRÍTICA: Incluir SOLAMENTE hallazgos POSITIVOS o ANORMALES.** Si no se registra ningún hallazgo positivo, el texto debe ser: **'EF: No registrado / Sin hallazgos de relevancia.'**).
-- **Estado General/Piel:** [Hallazgos POSITIVOS.]
-- **Signos Vitales:** [Hallazgos POSITIVOS o valores si se mencionan.]
-- **Cabeza y Cuello (ORL):** [Hallazgos POSITIVOS.]
-- **Cardiovascular y Pulmonar:** [Hallazgos POSITIVOS.]
-- **Abdomen:** [Hallazgos POSITIVOS.]
-- **Neurológico/Extremidades:** [Hallazgos POSITIVOS.]
+## 2. ${t('section_physical')}
+(Orden Semiológico. **REGLA CRÍTICA:** Si TODOS los sistemas están normales/sin hallazgos, NO LISTES NADA. Escribe ÚNICAMENTE esta frase exacta: "**${t('physical_exam_negative')}**".
+Si hay hallazgos positivos, lista SOLO los sistemas afectados).
+- **${t('field_general')}:** [Solo si positivo]
+- **${t('field_vitals')}:** [Solo si positivo]
+... (etc)
 
-## 3. Hipótesis Diagnósticas
-(Formato ESTRICTO para parsing y copiado. Incluye el CIE-10 asignado y un **% de probabilidad** estimado. El formato de justificación debe ser contundente).
-Ejemplo:
-1. **Nombre del Diagnóstico (CIE-10: A09.9) - Probabilidad: 85%**
->> Justificación Clínica Contundente: [Análisis profundo de los hallazgos que soportan esta hipótesis. Este texto debe ir en una nueva línea.]
+## 3. ${t('section_diagnosis')}
+(Formato ESTRICTO para parsing de UI):
+1. **Nombre del Diagnóstico (CIE-10: X00.0) - Probabilidad: X%**
+[En la línea siguiente, escribe el análisis clínico que soporta esta hipótesis.]
 
-## 4. Plan e Indicaciones
-(VOZ: Dirigido a USTED/TÚ. Esta sección incluye TODAS las indicaciones de seguridad, dieta y seguimiento en un listado unificado).
-- [Indicación General de Dieta, Reposo, etc.]
-- **Control Médico:** [Control en X días o 'Según evolución'.]
-- **Derivación a:** [Si aplica, mencionar Especialista Médico o **Profesional No Médico**.]
-- **Alarma (CRÍTICA):** ACUDIR A URGENCIAS INMEDIATAMENTE si presenta: [Listar 2-3 signos de alarma CONCRETOS].
+## 4. ${t('section_plan')}
+(VOZ: Dirigido al paciente).
+- [Indicaciones Generales]
+- **${t('field_followup')}:** [Texto]
+- **${t('field_referral')}:** [Texto]
+- **${t('field_alarm')}:** [Signos de alarma]
 
-## 5. Indicaciones Farmacológicas
-(Listar sugerencias de tratamiento. DETALLAR TODOS LOS PARÁMETROS. **VOZ: Dirigido a USTED/TÚ**):
-1. **[Presentación del medicamento]**, [**Dosis** exacta], [**Vía** de administración], [Cada **X horas**], [**Duración** del tratamiento].
+## 5. ${t('section_meds_instructions')}
+(Listar sugerencias. **VOZ: Dirigido al paciente**):
+1. **[Medicamento]**, [Dosis], [Vía], [Frecuencia], [Duración].
 
-## 6. Solicitud de Exámenes
-(VOZ: Dirigido al LAB o al PACIENTE/TÚ):
-[Lista numerada EXCLUSIVA de nombres de exámenes para copiar]
-
----JUSTIFICACIÓN---
->> Justificación Clínica Contundente: [Análisis profundo explicando el porqué de la solicitud y qué se busca descartar o confirmar. ESTE TEXTO DEBE COMENZAR EN UNA NUEVA LÍNEA JUSTO DESPUÉS DEL SEPARADOR.]
+## 6. ${t('section_exams')}
+(Formato ESTRICTO igual que Diagnósticos para parsing de UI):
+1. **Nombre del Examen**
+[En la línea siguiente, explica la justificación clínica de la solicitud.]
 
 FORMATO JSON OBLIGATORIO (Alertas):
 &&&ALERTS_JSON_START&&&
@@ -116,9 +108,9 @@ FORMATO JSON OBLIGATORIO (Alertas):
   {
     "type": "Red Flag" | "Drug Interaction" | "Contraindication" | "CIE-10 Alert",
     "severity": "High" | "Medium" | "Low",
-    "title": "Título corto del riesgo",
-    "details": "Explicación detallada para el médico.",
-    "recommendation": "Acción sugerida (ej: Validar código, Derivar urgencia)."
+    "title": "Título corto (en ${languageName})",
+    "details": "Explicación (en ${languageName}).",
+    "recommendation": "Acción (en ${languageName})."
   }
 ]
 &&&ALERTS_JSON_END&&&
@@ -131,12 +123,12 @@ PERFIL MÉDICO: ${profile.specialty} en ${profile.country}.
 IDIOMA DE SALIDA: ${languageName}.
 CONTEXTO ADICIONAL: ${context.additionalContext}
 
-TRANSCRIPCIÓN COMPLETA DE LA CONSULTA:
+TRANSCRIPCIÓN:
 ${transcript}
 
-${fileParts.length > 0 ? 'NOTA: Se adjuntan imágenes/documentos. Analízalos en el contexto de la anamnesis.' : ''}
+${fileParts.length > 0 ? 'NOTA: Se adjuntan imágenes/documentos.' : ''}
 
-Genera el borrador clínico ahora, cumpliendo estrictamente todas las REGLAS.
+Genera el borrador clínico ahora en ${languageName}.
 `;
     return { systemInstruction, userPrompt };
 }
@@ -151,7 +143,7 @@ export async function* generateClinicalNoteStream(
     const apiKey = getApiKey();
 
     if (!apiKey) {
-        throw new Error("API Key not configured. Please check VITE_GEMINI_API_KEY in vite.config.ts.");
+        throw new Error("API Key not configured.");
     }
 
     const ai = new GoogleGenAI({ apiKey });
@@ -160,7 +152,6 @@ export async function* generateClinicalNoteStream(
     
     const parts: any[] = [{ text: finalUser }];
     
-    // Add images/PDFs if any
     if (fileParts && fileParts.length > 0) {
         fileParts.forEach(part => {
             parts.push({
@@ -178,7 +169,7 @@ export async function* generateClinicalNoteStream(
             contents: [{ role: 'user', parts }],
             config: {
                 systemInstruction: finalSystem,
-                temperature: 0.0, // AJUSTE FINAL: Mínima creatividad para máxima consistencia.
+                temperature: 0.0,
             }
         });
 
@@ -193,7 +184,7 @@ export async function* generateClinicalNoteStream(
     }
 }
 
-// --- FUNCIÓN DE SUGERENCIAS (CONSOLIDADA) ---
+// --- SUGGESTIONS ---
 export const generateSuggestionsStateless = async (
     profile: Profile,
     context: ConsultationContext,
@@ -204,50 +195,31 @@ export const generateSuggestionsStateless = async (
     if (!apiKey) return "";
 
     const ai = new GoogleGenAI({ apiKey });
-
-    const modelId = MODEL_ID; 
     const languageName = profile.language === 'pt' ? 'Portuguese' : profile.language === 'en' ? 'English' : 'Spanish';
-    
     const recentTranscript = transcript.slice(-2000);
 
     const prompt = `
-Rol: Asistente médico en tiempo real.
-Tarea: Analiza lo ÚLTIMO que se ha hablado y sugiere 3-5 conceptos clave que el médico NO ha preguntado aún.
+Rol: Asistente médico. Sugiere 3-5 conceptos clave NO preguntados.
+FORMATO: Solo palabras clave o preguntas cortas (Max 3 palabras).
+Idioma: ${languageName}.
 
-REGLA DE ORO (FORMATO CORTO):
-- NO generes oraciones completas.
-- Genera solo PALABRAS CLAVE o PREGUNTAS DE MÁXIMO 3 PALABRAS.
-- Estilo directo y telegráfico.
-- Mal ejemplo: "¿El paciente ha notado si las heces tienen sangre?" (Muy largo)
-- Buen ejemplo: "¿Sangre en heces?", "¿Fiebre?", "¿Alergias?"
-
-Categorías obligatorias:
+Categorías:
 - ${t('category_current_illness')}
 - ${t('category_systems_review')}
 - ${t('category_history')}
 
-Formato de salida exacto:
-CATEGORÍA: Texto corto
-
-Transcript reciente:
-${recentTranscript}
-
-Contexto Paciente: ${context.age} años, ${context.sex}.
-Idioma de respuesta: ${languageName}.
+Transcript: ${recentTranscript}
+Paciente: ${context.age}, ${context.sex}.
 `;
 
     try {
         const response = await ai.models.generateContent({
-            model: modelId,
+            model: MODEL_ID,
             contents: prompt,
-            config: {
-                temperature: 0.3
-            }
+            config: { temperature: 0.3 }
         });
-
         return response.text || '';
     } catch (e) {
-        console.error("Error generating suggestions:", e);
         return "";
     }
 };

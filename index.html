@@ -8,6 +8,20 @@
     
     <script src="https://cdn.tailwindcss.com"></script>
     
+    <script>
+      tailwind.config = {
+        darkMode: 'class', // <--- Esto activa el botón de la Luna/Sol
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+            }
+          }
+        }
+      }
+    </script>
+    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -15,41 +29,29 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
     <style>
+      /* He eliminado el background-color fijo del body para que React controle el color (Claro u Oscuro) */
       body {
         font-family: 'Inter', sans-serif;
-        background-color: #020617; /* Slate 950 profundo */
-        color: #cbd5e1; /* Slate 300 */
       }
-      /* Custom Scrollbar para que combine con el tema oscuro */
+
+      /* Custom Scrollbar (Adaptado para verse bien en ambos modos) */
       ::-webkit-scrollbar {
         width: 8px;
         height: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: #0f172a; 
+        background: transparent; 
       }
       ::-webkit-scrollbar-thumb {
-        background: #334155; 
+        background: #94a3b8; /* Un gris neutro */
         border-radius: 4px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #475569; 
+        background: #64748b; 
       }
       
-      /* Utilidades extra */
       .glass {
-        background: rgba(15, 23, 42, 0.6);
         backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-      }
-      .input-dark {
-        background: rgba(2, 6, 23, 0.5);
-        border: 1px solid rgba(51, 65, 85, 0.5);
-      }
-      .input-dark:focus {
-        border-color: #38bdf8;
-        outline: none;
-        box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
       }
     </style>
     
