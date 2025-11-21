@@ -26,6 +26,7 @@ export interface ClinicalAlert {
 }
 
 // Model Constants
+// MANTENEMOS TU VERSIÓN SOLICITADA
 const MODEL_ID = 'gemini-2.5-flash'; 
 
 const getApiKey = (): string => {
@@ -184,7 +185,7 @@ export async function* generateClinicalNoteStream(
     }
 }
 
-// --- SUGGESTIONS ---
+// --- SUGGESTIONS (CORREGIDO PARA ROBUSTEZ) ---
 export const generateSuggestionsStateless = async (
     profile: Profile,
     context: ConsultationContext,
@@ -196,20 +197,30 @@ export const generateSuggestionsStateless = async (
 
     const ai = new GoogleGenAI({ apiKey });
     const languageName = profile.language === 'pt' ? 'Portuguese' : profile.language === 'en' ? 'English' : 'Spanish';
+    
+    // Usamos una ventana de contexto más pequeña para las sugerencias para ahorrar latencia
     const recentTranscript = transcript.slice(-2000);
 
+    // PROMPT MEJORADO: Exige el formato exacto CATEGORÍA: Pregunta
     const prompt = `
-Rol: Asistente médico. Sugiere 3-5 conceptos clave NO preguntados.
-FORMATO: Solo palabras clave o preguntas cortas (Max 3 palabras).
-Idioma: ${languageName}.
+Rol: Asistente médico en tiempo real.
+Tarea: Analiza lo ÚLTIMO que se ha hablado y sugiere 3-5 preguntas médicas FALTANTES o conceptos a profundizar.
 
-Categorías:
+REGLA DE FORMATO (ESTRICTA):
+- Formato EXACTO por línea: "CATEGORÍA: Pregunta corta"
+- NO uses Markdown (negritas/asteriscos) en la CATEGORÍA.
+- Preguntas de máximo 5 palabras.
+
+Categorías VÁLIDAS (Usa exactamente estas palabras para la parte de CATEGORÍA):
 - ${t('category_current_illness')}
 - ${t('category_systems_review')}
 - ${t('category_history')}
 
-Transcript: ${recentTranscript}
-Paciente: ${context.age}, ${context.sex}.
+Transcript reciente:
+${recentTranscript}
+
+Datos Paciente: ${context.age} años, ${context.sex}.
+Idioma de respuesta: ${languageName}.
 `;
 
     try {
@@ -220,6 +231,8 @@ Paciente: ${context.age}, ${context.sex}.
         });
         return response.text || '';
     } catch (e) {
+        console.error("Error generando sugerencias:", e);
+        // Devolvemos string vacío para no romper la UI
         return "";
     }
 };

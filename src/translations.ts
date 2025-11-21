@@ -25,17 +25,17 @@ export const countries: Record<Language, Record<string, string>> = {
   en: { 
       mx: 'Mexico', gt: 'Guatemala', sv: 'El Salvador', hn: 'Honduras', ni: 'Nicaragua', cr: 'Costa Rica', pa: 'Panama',
       co: 'Colombia', ve: 'Venezuela', ec: 'Ecuador', pe: 'Peru', bo: 'Bolivia', py: 'Paraguay', uy: 'Uruguay', 
-      ar: 'Argentina', cl: 'Chile', br: 'Brazil', us: 'United States', es: 'Spain'
+      ar: 'Argentina', cl: 'Chile', br: 'Brazil', es: 'Spain'
   },
   es: { 
       mx: 'México', gt: 'Guatemala', sv: 'El Salvador', hn: 'Honduras', ni: 'Nicaragua', cr: 'Costa Rica', pa: 'Panamá',
       co: 'Colombia', ve: 'Venezuela', ec: 'Ecuador', pe: 'Perú', bo: 'Bolivia', py: 'Paraguay', uy: 'Uruguay', 
-      ar: 'Argentina', cl: 'Chile', br: 'Brasil', us: 'Estados Unidos', es: 'España'
+      ar: 'Argentina', cl: 'Chile', br: 'Brasil', es: 'España'
   },
   pt: { 
       mx: 'México', gt: 'Guatemala', sv: 'El Salvador', hn: 'Honduras', ni: 'Nicarágua', cr: 'Costa Rica', pa: 'Panamá',
       co: 'Colômbia', ve: 'Venezuela', ec: 'Equador', pe: 'Peru', bo: 'Bolívia', py: 'Paraguai', uy: 'Uruguai', 
-      ar: 'Argentina', cl: 'Chile', br: 'Brasil', us: 'Estados Unidos', es: 'Espanha'
+      ar: 'Argentina', cl: 'Chile', br: 'Brasil', es: 'Espanha'
   },
 };
 
@@ -74,7 +74,17 @@ export const translations: Record<Language, Record<string, string>> = {
     settings_label: "Settings",
     greeting_morning: "Hello",
     greeting_subtitle: "What patient are we seeing today?",
-    transcribing_label: "TRANSCRIBING...",
+    transcribing_label: "LISTENING...", 
+    
+    // --- UPDATED LEGAL/SAFE TERMINOLOGY ---
+    start_transcribing_tooltip: "Start Transcription (Speech-to-Text)",
+    stop_transcribing_tooltip: "Stop Transcription",
+    
+    // --- MISSING BUTTON KEYS FIXED ---
+    button_word: "Word",
+    button_pdf: "PDF",
+    
+    placeholder_doc: "DOC",
     disclaimer_text: "CliniScribe AI can make mistakes. Please verify clinical information.",
     sidebar_profile: "Profile",
     profile_title: "Profile Settings",
@@ -103,6 +113,8 @@ export const translations: Record<Language, Record<string, string>> = {
     copy_button_title: "Copy",
     transcript_placeholder: "Type patient context or press Transcribe to record...",
     record_disabled_tooltip: "Enter Age and Sex first",
+    // NUEVA CLAVE:
+    generate_disabled_tooltip: "Enter Age, Sex and Clinical Context.", 
     start_recording: "Start Transcription",
     stop_recording: "Stop Transcription",
     stop_button: "Stop",
@@ -152,16 +164,26 @@ export const translations: Record<Language, Record<string, string>> = {
     no_preview_available: "No preview available",
     cancel_button: "Cancel",
     confirm_button: "Confirm",
+    
+    logout_modal_title: "Log Out",
+    clear_history_modal_title: "Clear History",
+    delete_note_modal_title: "Delete Note",
+    clear_input_modal_title: "Clear Input",
+    
     logout_confirm: "Are you sure you want to log out?",
-    clear_history_confirm: "Clear all history?",
-    delete_note_confirm: "Delete this note?",
-    clear_input_confirm: "Clear all inputs?",
+    clear_history_confirm: "This will delete all your saved history. Are you sure?",
+    delete_note_confirm: "This action cannot be undone. Delete this note?",
+    clear_input_confirm: "This will clear all current text and selections.",
+    
     login_title: "Welcome",
     login_subtitle: "Sign in to continue",
     login_google_button: "Sign in with Google",
     login_footer: "Secure HIPAA-compliant environment",
     studies_justification_separator_instruction: "JUSTIFICATION:",
-    enter_age_sex_before_recording: "Please enter Age and Sex first.",
+    
+    // Terminology Fix
+    enter_age_sex_before_recording: "Please enter Age and Sex before transcribing.",
+    
     speech_recognition_not_supported: "Speech Recognition not supported.",
     speech_recognition_error: "Speech Error:",
     error_generating_note: "Error generating note."
@@ -200,7 +222,17 @@ export const translations: Record<Language, Record<string, string>> = {
     settings_label: "Configurar",
     greeting_morning: "Hola",
     greeting_subtitle: "¿Qué paciente veremos hoy?",
-    transcribing_label: "TRANSCRIBIENDO...",
+    transcribing_label: "ESCUCHANDO...",
+    
+    // --- UPDATED LEGAL/SAFE TERMINOLOGY ---
+    start_transcribing_tooltip: "Iniciar Transcripción",
+    stop_transcribing_tooltip: "Detener Transcripción",
+    
+    // --- MISSING BUTTON KEYS FIXED ---
+    button_word: "Word",
+    button_pdf: "PDF",
+
+    placeholder_doc: "DOC",
     disclaimer_text: "CliniScribe AI puede cometer errores. Por favor valide la información clínica.",
     sidebar_profile: "Perfil",
     profile_title: "Configuración de Perfil",
@@ -227,8 +259,10 @@ export const translations: Record<Language, Record<string, string>> = {
     remove_file_aria: "Eliminar archivo",
     transcript_label: "Notas de Consulta / Transcripción",
     copy_button_title: "Copiar",
-    transcript_placeholder: "Escribe aquí antecedentes o contexto, y presiona 'Transcribir'...",
+    transcript_placeholder: "Escribe aquí antecedentes o contexto, y presiona el micrófono para transcribir...",
     record_disabled_tooltip: "Ingrese Edad y Sexo primero",
+    // NUEVA CLAVE:
+    generate_disabled_tooltip: "Ingrese Edad, Sexo y Contexto Clínico.",
     start_recording: "Iniciar Transcripción",
     stop_recording: "Detener Transcripción",
     stop_button: "Detener",
@@ -278,16 +312,26 @@ export const translations: Record<Language, Record<string, string>> = {
     no_preview_available: "Vista previa no disponible",
     cancel_button: "Cancelar",
     confirm_button: "Confirmar",
+    
+    logout_modal_title: "Cerrar Sesión",
+    clear_history_modal_title: "Borrar Historial",
+    delete_note_modal_title: "Eliminar Nota",
+    clear_input_modal_title: "Limpiar Todo",
+
     logout_confirm: "¿Estás seguro de que quieres cerrar sesión?",
-    clear_history_confirm: "¿Borrar todo el historial?",
-    delete_note_confirm: "¿Eliminar esta nota?",
-    clear_input_confirm: "¿Limpiar todo?",
+    clear_history_confirm: "¿Borrar todo el historial guardado?",
+    delete_note_confirm: "Esta acción no se puede deshacer. ¿Eliminar?",
+    clear_input_confirm: "Esto borrará el texto actual.",
+    
     login_title: "Bienvenido",
     login_subtitle: "Inicia sesión para continuar",
     login_google_button: "Iniciar con Google",
     login_footer: "Entorno seguro compatible con HIPAA",
     studies_justification_separator_instruction: "JUSTIFICACIÓN:",
-    enter_age_sex_before_recording: "Ingrese Edad y Sexo antes de grabar.",
+    
+    // Terminology Fix
+    enter_age_sex_before_recording: "Ingrese Edad y Sexo antes de transcribir.",
+    
     speech_recognition_not_supported: "Navegador no compatible con voz.",
     speech_recognition_error: "Error de voz:",
     error_generating_note: "Error generando la nota."
@@ -323,7 +367,17 @@ export const translations: Record<Language, Record<string, string>> = {
     settings_label: "Configurações",
     greeting_morning: "Olá",
     greeting_subtitle: "Qual paciente veremos hoje?",
-    transcribing_label: "TRANSCREVENDO...",
+    transcribing_label: "OUVINDO...",
+    
+    // --- UPDATED LEGAL/SAFE TERMINOLOGY ---
+    start_transcribing_tooltip: "Iniciar Transcrição",
+    stop_transcribing_tooltip: "Parar Transcrição",
+    
+    // --- MISSING BUTTON KEYS FIXED ---
+    button_word: "Word",
+    button_pdf: "PDF",
+
+    placeholder_doc: "DOC",
     disclaimer_text: "A IA do CliniScribe pode cometer erros. Verifique as informações clínicas.",
     sidebar_profile: "Perfil",
     logout_button: "Sair",
@@ -353,6 +407,8 @@ export const translations: Record<Language, Record<string, string>> = {
     copy_button_title: "Copiar",
     transcript_placeholder: "Digite o contexto aqui ou pressione Transcrever para gravar...",
     record_disabled_tooltip: "Insira Idade e Sexo primeiro",
+    // NUEVA CLAVE:
+    generate_disabled_tooltip: "Insira Idade, Sexo e Contexto Clínico.",
     start_recording: "Iniciar Transcrição",
     stop_recording: "Parar Transcrição",
     stop_button: "Parar",
@@ -368,7 +424,7 @@ export const translations: Record<Language, Record<string, string>> = {
     all_questions_covered: "Você cobriu as perguntas sugeridas.",
     suggestions_appear_here: "Sugestões aparecerão aqui...",
     no_pending_suggestions: "Nenhuma sugestão pendente.",
-    progress: "Progresso",
+    progress: "Progreso",
     of: "de",
     questions_asked: "perguntas feitas",
     category_current_illness: "Doença Atual",
@@ -404,16 +460,26 @@ export const translations: Record<Language, Record<string, string>> = {
     no_preview_available: "Visualização indisponível",
     cancel_button: "Cancelar",
     confirm_button: "Confirmar",
+    
+    logout_modal_title: "Sair",
+    clear_history_modal_title: "Limpar Histórico",
+    delete_note_modal_title: "Excluir Nota",
+    clear_input_modal_title: "Limpar Tudo",
+
     logout_confirm: "Tem certeza que deseja sair?",
-    clear_history_confirm: "Limpar todo o histórico?",
-    delete_note_confirm: "Excluir esta nota?",
-    clear_input_confirm: "Limpar tudo?",
+    clear_history_confirm: "Isso apagará todo o histórico salvo.",
+    delete_note_confirm: "Não é possível desfazer. Excluir?",
+    clear_input_confirm: "Isso limpará o texto atual.",
+    
     login_title: "Bem-vindo",
     login_subtitle: "Faça login para continuar",
     login_google_button: "Entrar com Google",
     login_footer: "Ambiente seguro compatível com HIPAA",
     studies_justification_separator_instruction: "JUSTIFICATIVA:",
-    enter_age_sex_before_recording: "Por favor, insira Idade e Sexo antes de gravar.",
+    
+    // Terminology Fix
+    enter_age_sex_before_recording: "Por favor, insira Idade e Sexo antes de transcrever.",
+    
     speech_recognition_not_supported: "Navegador não suportado.",
     speech_recognition_error: "Erro de voz:",
     error_generating_note: "Erro ao gerar nota.",
