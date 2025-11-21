@@ -1,238 +1,200 @@
+// src/services/geminiService.ts
+
 import { GoogleGenAI } from "@google/genai";
+import { Profile, ConsultationContext, FilePart, ClinicalSuggestion } from './types/gemini.types';
+import {
+  getChileSystemInstruction,
+  getChileRoleInstruction,
+  getChileQueryInstruction
+} from './prompts/chilePrompts';
+import {
+  getLatamSystemInstruction,
+  getLatamRoleInstruction,
+  getLatamQueryInstruction
+} from './prompts/latamPrompts';
 
-export interface ConsultationContext {
-  age: string;
-  sex: string;
-  additionalContext: string;
-}
+// --- RE-EXPORT TYPES (CRUCIAL PARA APP.TSX) ---
+export type { Profile, ConsultationContext, FilePart, ClinicalAlert, ClinicalSuggestion } from './types/gemini.types';
 
-export interface Profile {
-  specialty: string;
-  country: string;
-  language: string;
-}
-
-export interface FilePart {
-  mimeType: string;
-  data: string;
-}
-
-export interface ClinicalAlert {
-  type: string;
-  severity: string;
-  title: string;
-  details: string;
-  recommendation: string;
-}
-
-// Model Constants
-// MANTENEMOS TU VERSIÓN SOLICITADA
-const MODEL_ID = 'gemini-2.5-flash'; 
+// --- Configuración ---
+const MODEL_ID = 'gemini-2.0-flash-exp'; // Recomendado: flash-exp o 1.5-flash
 
 const getApiKey = (): string => {
-    try {
-        // @ts-ignore
-        return import.meta.env.VITE_GEMINI_API_KEY || "AIzaSyBdx5HSliLOfh1BcpPvS6zgwO3GVNiiG38";
-    } catch (e) {
-        return "AIzaSyBdx5HSliLOfh1BcpPvS6zgwO3GVNiiG38";
-    }
-};
-
-export const parseAndHandleGeminiError = (error: any, defaultMsg: string) => {
-    console.error("Gemini Error:", error);
-    if (error.message) {
-        return error.message.replace(new RegExp('\\[.*?\\]\\s*'), '');
-    }
-    return defaultMsg;
-};
-
-// --- FUNCIÓN DE PROMPT FINAL ---
-function getNotePrompt(profile: Profile, context: ConsultationContext, transcript: string, fileParts: FilePart[], t: (key: string) => string) {
-    const languageName = profile.language === 'pt' ? 'Portuguese' : profile.language === 'en' ? 'English' : 'Spanish';
-
-    const systemInstruction = `
-[PRIORIDAD: MÁXIMA SEGURIDAD CLÍNICA - Las alertas JSON son un output no negociable.]
-
-Eres "CliniScribe", un escriba médico experto.
-Tu objetivo: Generar una nota clínica técnica, limpia y **estructurada para ser copiada/pegada en una Ficha Clínica Electrónica (EMR)**.
-
-REGLAS DE FORMATO CRÍTICAS:
-1.  **PRIVACIDAD ABSOLUTA:** OMITE el nombre, edad, sexo y cualquier otra información personal del paciente en el cuerpo de la nota. Empieza directamente con el contenido clínico.
-2.  **CIE-10 (RIESGO ACEPTADO):** La IA DEBE auto-asignar el código CIE-10 más probable y específico para cada diagnóstico.
-3.  **REGLA DE VOZ (CRÍTICA):** - Secciones 1, 2, y 3 deben ser **objetivas y en TERCERA PERSONA**.
-    - Secciones 4, 5, y 6 deben ser **directas y en SEGUNDA PERSONA (Usted/Tú)**.
-4.  **REGLA DE BOLDING ESTRICTO:** Usa negritas SOLAMENTE en **Títulos de campos** y **Hallazgos POSITIVOS**.
-5.  **REGLA DE LISTADO VERTICAL (CLAVE):** Cada elemento de la lista DEBE ir en su propia línea.
-6.  **IDIOMA:** Todo el contenido debe estar en ${languageName}.
-
-ESTRUCTURA DE SALIDA (SOAP Clínico Detallado):
-
-## 1. ${t('section_anamnesis')}
-(Lista vertical):
-- **${t('field_reason')}:** [Texto]
-- **${t('field_history')}:** [Texto]
-- **${t('field_meds')}:** [Texto]
-- **${t('field_allergies')}:** [Texto]
-- **${t('field_current_illness')}:** [Párrafo narrativo]
-
-## 2. ${t('section_physical')}
-(Orden Semiológico. **REGLA CRÍTICA:** Si TODOS los sistemas están normales/sin hallazgos, NO LISTES NADA. Escribe ÚNICAMENTE esta frase exacta: "**${t('physical_exam_negative')}**".
-Si hay hallazgos positivos, lista SOLO los sistemas afectados).
-- **${t('field_general')}:** [Solo si positivo]
-- **${t('field_vitals')}:** [Solo si positivo]
-... (etc)
-
-## 3. ${t('section_diagnosis')}
-(Formato ESTRICTO para parsing de UI):
-1. **Nombre del Diagnóstico (CIE-10: X00.0) - Probabilidad: X%**
-[En la línea siguiente, escribe el análisis clínico que soporta esta hipótesis.]
-
-## 4. ${t('section_plan')}
-(VOZ: Dirigido al paciente).
-- [Indicaciones Generales]
-- **${t('field_followup')}:** [Texto]
-- **${t('field_referral')}:** [Texto]
-- **${t('field_alarm')}:** [Signos de alarma]
-
-## 5. ${t('section_meds_instructions')}
-(Listar sugerencias. **VOZ: Dirigido al paciente**):
-1. **[Medicamento]**, [Dosis], [Vía], [Frecuencia], [Duración].
-
-## 6. ${t('section_exams')}
-(Formato ESTRICTO igual que Diagnósticos para parsing de UI):
-1. **Nombre del Examen**
-[En la línea siguiente, explica la justificación clínica de la solicitud.]
-
-FORMATO JSON OBLIGATORIO (Alertas):
-&&&ALERTS_JSON_START&&&
-[
-  {
-    "type": "Red Flag" | "Drug Interaction" | "Contraindication" | "CIE-10 Alert",
-    "severity": "High" | "Medium" | "Low",
-    "title": "Título corto (en ${languageName})",
-    "details": "Explicación (en ${languageName}).",
-    "recommendation": "Acción (en ${languageName})."
+  try {
+    // @ts-ignore
+    return import.meta.env.VITE_GEMINI_API_KEY || "";
+  } catch (e) {
+    return "";
   }
-]
-&&&ALERTS_JSON_END&&&
+};
 
-Si NO hay riesgos, envía un array vacío: [] entre los marcadores.
-`;
+// --- Error Handling ---
+export const parseAndHandleGeminiError = (error: any, defaultMsg: string) => {
+  console.error("Gemini Error:", error);
+  if (error.message) {
+    return error.message.replace(new RegExp('\\[.*?\\]\\s*'), '');
+  }
+  return defaultMsg;
+};
 
-    const userPrompt = `
-PERFIL MÉDICO: ${profile.specialty} en ${profile.country}.
-IDIOMA DE SALIDA: ${languageName}.
-CONTEXTO ADICIONAL: ${context.additionalContext}
-
-TRANSCRIPCIÓN:
-${transcript}
-
-${fileParts.length > 0 ? 'NOTA: Se adjuntan imágenes/documentos.' : ''}
-
-Genera el borrador clínico ahora en ${languageName}.
-`;
-    return { systemInstruction, userPrompt };
-}
-
-export async function* generateClinicalNoteStream(
-    profile: Profile,
-    context: ConsultationContext,
-    transcript: string,
-    fileParts: FilePart[],
-    t: (key: string) => string
+// --- SELECTOR DE PROMPTS SEGÚN PAÍS ---
+function getPromptsByCountry(
+  profile: Profile,
+  context: ConsultationContext,
+  transcript: string,
+  hasFiles: boolean
 ) {
-    const apiKey = getApiKey();
+  const isChile = profile.country === 'Chile';
 
-    if (!apiKey) {
-        throw new Error("API Key not configured.");
-    }
-
-    const ai = new GoogleGenAI({ apiKey });
-    
-    const { systemInstruction: finalSystem, userPrompt: finalUser } = getNotePrompt(profile, context, transcript, fileParts, t);
-    
-    const parts: any[] = [{ text: finalUser }];
-    
-    if (fileParts && fileParts.length > 0) {
-        fileParts.forEach(part => {
-            parts.push({
-                inlineData: {
-                    mimeType: part.mimeType,
-                    data: part.data
-                }
-            });
-        });
-    }
-
-    try {
-        const responseStream = await ai.models.generateContentStream({
-            model: MODEL_ID, 
-            contents: [{ role: 'user', parts }],
-            config: {
-                systemInstruction: finalSystem,
-                temperature: 0.0,
-            }
-        });
-
-        for await (const chunk of responseStream) {
-            if (chunk.text) {
-                yield { text: chunk.text };
-            }
-        }
-    } catch (e) {
-        console.error(e);
-        throw e;
-    }
+  if (isChile) {
+    return {
+      systemInstruction: getChileSystemInstruction(),
+      roleInstruction: getChileRoleInstruction(profile, context),
+      queryInstruction: getChileQueryInstruction(transcript, hasFiles)
+    };
+  } else {
+    return {
+      systemInstruction: getLatamSystemInstruction(profile.country),
+      roleInstruction: getLatamRoleInstruction(profile, context, profile.country),
+      queryInstruction: getLatamQueryInstruction(transcript, hasFiles, profile.country)
+    };
+  }
 }
 
-// --- SUGGESTIONS (CORREGIDO PARA ROBUSTEZ) ---
-export const generateSuggestionsStateless = async (
-    profile: Profile,
-    context: ConsultationContext,
-    transcript: string,
-    t: (key: string) => string
-): Promise<string> => {
-    const apiKey = getApiKey();
-    if (!apiKey) return "";
+// --- GENERAR NOTA CLÍNICA (Streaming) ---
+export async function* generateClinicalNoteStream(
+  profile: Profile,
+  context: ConsultationContext,
+  transcript: string,
+  fileParts: FilePart[],
+  t: (key: string) => string
+) {
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error("API Key not configured.");
 
-    const ai = new GoogleGenAI({ apiKey });
-    const languageName = profile.language === 'pt' ? 'Portuguese' : profile.language === 'en' ? 'English' : 'Spanish';
-    
-    // Usamos una ventana de contexto más pequeña para las sugerencias para ahorrar latencia
-    const recentTranscript = transcript.slice(-2000);
+  const ai = new GoogleGenAI({ apiKey });
+  const hasFiles = fileParts && fileParts.length > 0;
 
-    // PROMPT MEJORADO: Exige el formato exacto CATEGORÍA: Pregunta
-    const prompt = `
-Rol: Asistente médico en tiempo real.
-Tarea: Analiza lo ÚLTIMO que se ha hablado y sugiere 3-5 preguntas médicas FALTANTES o conceptos a profundizar.
+  const { systemInstruction, roleInstruction, queryInstruction } = getPromptsByCountry(
+    profile,
+    context,
+    transcript,
+    hasFiles
+  );
 
-REGLA DE FORMATO (ESTRICTA):
-- Formato EXACTO por línea: "CATEGORÍA: Pregunta corta"
-- NO uses Markdown (negritas/asteriscos) en la CATEGORÍA.
-- Preguntas de máximo 5 palabras.
+  // Construir partes del prompt
+  const promptParts: any[] = [
+    { text: systemInstruction },
+    { text: roleInstruction },
+    { text: queryInstruction }
+  ];
 
-Categorías VÁLIDAS (Usa exactamente estas palabras para la parte de CATEGORÍA):
-- ${t('category_current_illness')}
-- ${t('category_systems_review')}
-- ${t('category_history')}
+  // Agregar archivos si existen
+  if (hasFiles) {
+    fileParts.forEach(part => {
+      promptParts.push({
+        inlineData: {
+          mimeType: part.mimeType,
+          data: part.data
+        }
+      });
+    });
+  }
 
-Transcript reciente:
-${recentTranscript}
+  try {
+    const responseStream = await ai.models.generateContentStream({
+      model: MODEL_ID,
+      contents: [{ role: 'user', parts: promptParts }],
+      config: {
+        temperature: 0.3, // Baja para precisión médica
+        maxOutputTokens: 3000, // Aumentado para notas completas
+        topP: 0.95,
+        topK: 40
+      }
+    });
 
-Datos Paciente: ${context.age} años, ${context.sex}.
-Idioma de respuesta: ${languageName}.
-`;
-
-    try {
-        const response = await ai.models.generateContent({
-            model: MODEL_ID,
-            contents: prompt,
-            config: { temperature: 0.3 }
-        });
-        return response.text || '';
-    } catch (e) {
-        console.error("Error generando sugerencias:", e);
-        // Devolvemos string vacío para no romper la UI
-        return "";
+    for await (const chunk of responseStream) {
+      if (chunk.text) {
+        yield { text: chunk.text };
+      }
     }
+  } catch (e: any) {
+    console.error("Error generating clinical note:", e);
+    throw new Error(parseAndHandleGeminiError(e, "Error generando nota clínica"));
+  }
+}
+
+// --- SUGERENCIAS CLÍNICAS (Stateless) ---
+export const generateSuggestionsStateless = async (
+  profile: Profile,
+  context: ConsultationContext,
+  transcript: string,
+  t: (key: string) => string
+): Promise<ClinicalSuggestion[]> => {
+  const apiKey = getApiKey();
+  if (!apiKey) return [];
+
+  const ai = new GoogleGenAI({ apiKey });
+  
+  // Solo últimos 2000 caracteres para reducir tokens y costo
+  const recentTranscript = transcript.slice(-2000);
+  
+  const isChile = profile.country === 'Chile';
+  const isBrazil = profile.country === 'Brazil';
+
+  // Adaptar idioma del prompt de sugerencias
+  const languageInstructions = isBrazil
+    ? 'Responda em português brasileiro.'
+    : 'Responde en español.';
+
+  const systemPrompt = `
+Eres un asistente médico senior experto en semiología${isBrazil ? ' para o Brasil' : isChile ? ' para Chile' : ' para LATAM'}.
+Sistema STATELESS: analiza solo el fragmento actual.
+
+Regras:
+1. Sugiere 3 preguntas breves y directas (máximo 10 palabras) que el médico debería hacer ahora.
+2. Categorias posibles: "RED FLAG", "SCREENING", "EXAMINATION", "DIAGNOSTIC".
+3. Prioriza descartar emergencias.
+4. ${languageInstructions}
+
+Formato JSON estricto:
+{
+  "suggestions": [
+    {
+      "category": "RED FLAG",
+      "question": "¿Siente opresión en el pecho?",
+      "priority": "high",
+      "rationale": "Descartar angor"
+    }
+  ]
+}
+  `.trim();
+
+  const queryPrompt = `
+Contexto: ${profile.specialty}, paciente ${context.age} años
+Transcripción: "${recentTranscript}"
+
+Genera JSON.
+  `.trim();
+
+  try {
+    const response = await ai.models.generateContent({
+      model: MODEL_ID,
+      contents: [{ text: systemPrompt + '\n\n' + queryPrompt }],
+      config: {
+        temperature: 0.4,
+        maxOutputTokens: 1000,
+        responseMimeType: 'application/json'
+      }
+    });
+
+    const text = response.text || '{"suggestions":[]}';
+    // Limpieza básica por si el modelo incluye backticks de markdown
+    const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(cleanText);
+    return parsed.suggestions || [];
+  } catch (e: any) {
+    console.error("Error generating suggestions:", e);
+    return [];
+  }
 };

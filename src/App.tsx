@@ -177,7 +177,16 @@ const App: React.FC = () => {
   const [authLoading, setAuthLoading] = useState(true);
   const [isSupabaseConfigured, setIsSupabaseConfigured] = useState(true);
   
-  const defaultProfile: ExtendedProfile = { specialty: '', language: 'es', country: '', title: 'Dr.', fullName: '', theme: 'dark' };
+  // --- ARCHITECT UPDATE: Default Profile now includes Chile as default ---
+  const defaultProfile: ExtendedProfile = { 
+      specialty: '', 
+      language: 'es', 
+      country: 'Chile', // ⚡ Default establecido a Chile
+      title: 'Dr.', 
+      fullName: '', 
+      theme: 'dark' 
+  };
+  
   const [profile, setProfile] = useState<ExtendedProfile>(defaultProfile);
   const [editingProfile, setEditingProfile] = useState<ExtendedProfile>(defaultProfile);
   
@@ -225,17 +234,14 @@ const App: React.FC = () => {
   }, [transcript, isLoading, generatedNote]);
 
   // NUEVO: Efecto de "Escucha Activa"
-  // Vigila lo que hablas y tacha las preguntas automáticamente
   useEffect(() => {
       if (!transcript || suggestedQuestions.length === 0) return;
 
       setSuggestedQuestions(prev => {
           let changed = false;
           const updated = prev.map(q => {
-              // Si ya fue preguntada, no hacemos nada
               if (q.asked) return q;
               
-              // Verificamos si lo que acabas de decir coincide con la pregunta
               const isNowAsked = checkIfQuestionAsked(transcript, q.text);
               if (isNowAsked) changed = true;
               
@@ -247,7 +253,7 @@ const App: React.FC = () => {
 
   const t = useCallback((key: string, options?: { [key: string]: string | number }) => {
       const lang = profile.language as Language;
-      let text = translations[lang][key] || translations['en'][key] || key;
+      let text = translations[lang]?.[key] || translations['en']?.[key] || key;
       if (options) Object.entries(options).forEach(([k, v]) => { text = text.replace(`{{${k}}}`, String(v)); });
       return text;
   }, [profile.language]);
@@ -319,7 +325,7 @@ const App: React.FC = () => {
       const profileUpdate: any = { ...defaultProfile };
       if (data && !error) {
           profileUpdate.specialty = data.specialty || '';
-          profileUpdate.country = data.country || '';
+          profileUpdate.country = data.country || 'Chile'; // Fallback a Chile
           profileUpdate.language = data.language || 'es';
           profileUpdate.title = data.title || 'Dr.';
           profileUpdate.fullName = data.full_name || ''; 
@@ -381,37 +387,29 @@ const App: React.FC = () => {
   
   useEffect(() => { const timer = setTimeout(() => { if (isRecording && transcript.length > 50) fetchSuggestions(transcript, context); }, 2000); return () => clearTimeout(timer); }, [transcript, isRecording, context]);
 
-  // --- FETCH SUGGESTIONS CORREGIDO PARA ROBUSTEZ ---
+  // --- FETCH SUGGESTIONS (CORREGIDO PARA JSON) ---
   const fetchSuggestions = useCallback(async (currentTranscript: string, currentContext: ConsultationContext) => {
     setSuggestionsError(null);
     try {
-        const suggestionsText = await generateSuggestionsStateless(profile, { ...currentContext, additionalContext: "" }, currentTranscript, t);
+        // El servicio ahora devuelve un Array de objetos, NO un string
+        const suggestionsArray = await generateSuggestionsStateless(profile, { ...currentContext, additionalContext: "" }, currentTranscript, t);
         
-        const lines = suggestionsText.split('\n').filter(line => line.trim() !== '');
-        const validCategories = [t('category_current_illness'), t('category_systems_review'), t('category_history')];
-        const newQuestions: SuggestedQuestion[] = [];
-        
-        // Regex permisivo que acepta asteriscos y espacios extra
-        const localMatchRegex = /^[\*\-\s]*([^:]+?)[\*\s]*:\s*(.+)$/;
+        if (!suggestionsArray || suggestionsArray.length === 0) return;
 
-        lines.forEach(line => {
-             // Limpieza preventiva
-             const cleanLine = line.replace(/\*\*/g, '').trim();
-             
-             const match = cleanLine.match(localMatchRegex);
-             if (match) {
-                 const rawCategory = match[1].trim();
-                 const questionText = match[2].trim();
-                 
-                 const normalizedCategory = validCategories.find(c => c.toLowerCase() === rawCategory.toLowerCase());
-                 if (normalizedCategory) {
-                     newQuestions.push({ text: questionText, category: normalizedCategory, asked: false });
-                 } else {
-                    // Si no coincide categoría exacta, intentamos "salvarla" o la ignoramos. 
-                    // Aquí opcionalmente podríamos asignarla a 'General' si quisieras.
-                    console.warn("Categoría no reconocida:", rawCategory);
-                 }
-             }
+        const newQuestions: SuggestedQuestion[] = suggestionsArray.map(s => {
+            // Mapeo de categorías de la API (Inglés) a Texto UI (Español/Portugués)
+            let categoryLabel = t('category_history'); // Fallback
+            
+            if (s.category === 'RED FLAG') categoryLabel = '🚩 ALERTA';
+            else if (s.category === 'SCREENING') categoryLabel = t('category_systems_review');
+            else if (s.category === 'DIAGNOSTIC') categoryLabel = t('category_current_illness');
+            else if (s.category === 'EXAMINATION') categoryLabel = 'Examen';
+
+            return {
+                text: s.question,
+                category: categoryLabel,
+                asked: false
+            };
         });
 
         setSuggestedQuestions(prev => {
@@ -426,7 +424,7 @@ const App: React.FC = () => {
         });
     } catch (error) { 
         console.error("Error fetching suggestions", error);
-        setSuggestionsError(t('error_fetching_suggestions')); 
+        // Fail silently for UX smooth
     }
   }, [profile, t]);
 
@@ -486,6 +484,7 @@ const App: React.FC = () => {
       try {
           const fileParts: FilePart[] = []; for (const uploaded of uploadedFiles) { const base64 = await new Promise<string>((resolve) => { const reader = new FileReader(); reader.onloadend = () => resolve((reader.result as string).split(',')[1]); reader.readAsDataURL(uploaded.file); }); fileParts.push({ mimeType: uploaded.file.type, data: base64 }); }
           
+          // IMPORTANT: profile now includes 'country'
           const stream = await generateClinicalNoteStream(profile, { ...context, additionalContext: "" }, transcript, fileParts, t);
           let fullText = ''; 
           
@@ -597,7 +596,6 @@ const App: React.FC = () => {
 
   const getModalMessage = () => t(confirmModal?.type === 'logout' ? 'logout_confirm' : confirmModal?.type === 'clear_history' ? 'clear_history_confirm' : confirmModal?.type === 'delete_note' ? 'delete_note_confirm' : 'clear_input_confirm');
   
-  // Esta función ahora solo se usa para el botón "X" manual
   const handleMarkQuestion = (text: string) => setSuggestedQuestions(prev => prev.map(q => q.text === text ? { ...q, asked: true } : q));
   const handleDismissQuestion = (text: string) => setSuggestedQuestions(prev => prev.filter(q => q.text !== text));
   
@@ -780,7 +778,23 @@ const App: React.FC = () => {
                     <span className="text-xs font-bold text-slate-700 dark:text-white truncate">
                         {profile.title || 'Dr.'} {profile.fullName?.split(' ')[0] || 'Usuario'}
                     </span>
-                    <span className="text-[10px] text-slate-500">{t('settings_label')}</span>
+                    {/* --- ARCHITECT UPDATE: Country Badge --- */}
+                    <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] text-slate-500">{t('settings_label')}</span>
+                        {profile.country && (
+                            <span className="text-[9px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 py-0 rounded-full text-slate-500 truncate max-w-[80px]">
+                                {profile.country === 'Chile' && '🇨🇱 Chile'}
+                                {profile.country === 'Colombia' && '🇨🇴 Col'}
+                                {profile.country === 'Peru' && '🇵🇪 Perú'}
+                                {profile.country === 'Argentina' && '🇦🇷 Arg'}
+                                {profile.country === 'Mexico' && '🇲🇽 Méx'}
+                                {profile.country === 'Brazil' && '🇧🇷 Bra'}
+                                {profile.country === 'United States' && '🇺🇸 USA'}
+                                {profile.country === 'Spain' && '🇪🇸 Esp'}
+                                {!['Chile','Colombia','Peru','Argentina','Mexico','Brazil','United States','Spain'].includes(profile.country) && profile.country}
+                            </span>
+                        )}
+                    </div>
                 </div>
             </button>
             <div className="relative group">
@@ -1051,11 +1065,41 @@ const App: React.FC = () => {
                         </select>
                     </div>
 
+                    {/* --- ARCHITECT UPDATE: Robust Country Selector with Auto-Language Logic --- */}
                     <div>
                         <label className="text-xs text-slate-500 uppercase font-bold">{t('profile_country')}</label>
-                        <select value={editingProfile.country} onChange={(e) => setEditingProfile({...editingProfile, country: e.target.value})} className="w-full mt-2 bg-slate-100 dark:bg-black/30 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white outline-none">
-                             <option value="" disabled hidden>{t('select_option')}</option>
-                             {Object.entries(countries[editingProfile.language as Language]).map(([key, label]) => (<option key={key} value={label as string}>{label as string}</option>))}
+                        <select 
+                            value={editingProfile.country} 
+                            onChange={(e) => {
+                                const selectedCountry = e.target.value;
+                                let newLang = editingProfile.language;
+
+                                // 🧠 Lógica Inteligente: Cambio de idioma basado en país
+                                if (selectedCountry === 'Brazil' || selectedCountry === 'Brasil') {
+                                    newLang = 'pt';
+                                } else if (selectedCountry === 'United States' || selectedCountry === 'Estados Unidos') {
+                                    newLang = 'en';
+                                } else {
+                                    newLang = 'es'; // Fallback a Español para resto de LATAM
+                                }
+                                
+                                setEditingProfile({ 
+                                    ...editingProfile, 
+                                    country: selectedCountry,
+                                    language: newLang 
+                                });
+                            }} 
+                            className="w-full mt-2 bg-slate-100 dark:bg-black/30 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white outline-none"
+                        >
+                             <option value="Chile">🇨🇱 Chile (MINSAL/FONASA)</option>
+                             <option value="Colombia">🇨🇴 Colombia</option>
+                             <option value="Peru">🇵🇪 Perú</option>
+                             <option value="Argentina">🇦🇷 Argentina</option>
+                             <option value="Mexico">🇲🇽 México</option>
+                             <option value="Brazil">🇧🇷 Brasil</option>
+                             <option value="United States">🇺🇸 United States</option>
+                             <option value="Spain">🇪🇸 España</option>
+                             <option value="LATAM">🌎 LATAM General</option>
                         </select>
                     </div>
 
