@@ -20,12 +20,18 @@ import {
   ChevronLeft as ChevronLeftIcon,
   Moon as MoonIcon,
   Sun as SunIcon,
-  LogOut as LogOutIcon // <--- Nuevo
+  LogOut as LogOutIcon,
+  // --- NUEVOS ICONOS AGREGADOS ---
+  ThumbsUp as ThumbsUpIcon,
+  ThumbsDown as ThumbsDownIcon
 } from 'lucide-react';
 
 export { 
   QuillIcon, SparklesIcon, TrashIcon, CopyIcon, SpinnerIcon, MicrophoneIcon, StopIcon, 
   UploadIcon, LightbulbIcon, CheckCircleIcon, CheckIcon, XIcon, HistoryIcon, 
   AlertTriangleIcon, FileDownIcon, EyeIcon, UserIcon, NotesIcon, ChevronLeftIcon,
-  MoonIcon, SunIcon, LogOutIcon
+  MoonIcon, SunIcon, LogOutIcon,
+  // --- EXPORTAR LOS NUEVOS ---
+  ThumbsUpIcon,
+  ThumbsDownIcon
 };

@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { generateClinicalNoteStream, generateSuggestionsStateless, ConsultationContext, Profile, FilePart, ClinicalAlert, parseAndHandleGeminiError } from './services/geminiService';
-import { QuillIcon, SparklesIcon, TrashIcon, CopyIcon, SpinnerIcon, MicrophoneIcon, StopIcon, UploadIcon, LightbulbIcon, CheckCircleIcon, CheckIcon, XIcon, AlertTriangleIcon, FileDownIcon, EyeIcon, NotesIcon, ChevronLeftIcon, MoonIcon, SunIcon, UserIcon, LogOutIcon } from './components/icons';
-import { translations, Language, specialties, countries } from './translations';
+import { QuillIcon, SparklesIcon, TrashIcon, CopyIcon, SpinnerIcon, MicrophoneIcon, StopIcon, UploadIcon, LightbulbIcon, CheckCircleIcon, CheckIcon, XIcon, AlertTriangleIcon, FileDownIcon, NotesIcon, ChevronLeftIcon, MoonIcon, SunIcon, UserIcon, LogOutIcon } from './components/icons';
+import { translations, Language, specialties } from './translations';
+import { FeedbackWidget } from './components/FeedbackWidget';
 import { supabase } from './services/supabaseClient';
 import { Session } from '@supabase/supabase-js';
 import Login from './components/Login';
@@ -24,6 +25,7 @@ const RE_HYPOTHESIS_LINE = new RegExp('^\\d+\\.\\s*(.*)$', 'i');
 const RE_BOLD_MARKDOWN = new RegExp('\\*\\*(.*?)\\*\\*', 'g');
 const RE_NEWLINE = new RegExp('\\n', 'g');
 const RE_SIMPLE_JSON = /^[\s]*\{[\s\S]*\}[\s]*$/; 
+const RE_ORPHAN_JSON_ARRAY = /(\n\s*\[\s*\{\s*"type":[\s\S]*\]\s*)$/;
 
 // --- Utility Functions ---
 const spanishStopWords = new Set(['el', 'la', 'los', 'las', 'un', 'una', 'y', 'o', 'pero', 'si', 'no', 'en', 'de', 'con', 'por', 'para']);
@@ -32,28 +34,17 @@ const normalizeTextForMatching = (text: string): string => {
     return text.toLowerCase().normalize("NFD").replace(RE_ACCENTS, "").replace(RE_PUNCTUATION, "").split(RE_WHITESPACE).filter(w => !spanishStopWords.has(w)).join(" ").trim();
 };
 
-// NUEVO: Función para "Escucha Activa" (Detecta si ya hiciste la pregunta)
 const checkIfQuestionAsked = (transcript: string, questionText: string): boolean => {
     if (!transcript || !questionText) return false;
-    
-    // Normalizamos ambos textos
     const normTranscript = normalizeTextForMatching(transcript);
     const normQuestion = normalizeTextForMatching(questionText);
-    
-    // 1. Coincidencia exacta o contenida
     if (normTranscript.includes(normQuestion)) return true;
-    
-    // 2. Coincidencia por Palabras Clave (Fuzzy Match)
-    // Si mencionas el 60% de las palabras clave, asumimos que la hiciste.
-    const questionWords = normQuestion.split(' ').filter(w => w.length > 3); // Ignoramos palabras muy cortas
+    const questionWords = normQuestion.split(' ').filter(w => w.length > 3);
     if (questionWords.length === 0) return false;
-
     let matches = 0;
     questionWords.forEach(word => {
         if (normTranscript.includes(word)) matches++;
     });
-
-    // Umbral de coincidencia (0.6 = 60%)
     return (matches / questionWords.length) >= 0.6; 
 };
 
@@ -161,7 +152,26 @@ const ClinicalNoteOutput: React.FC<{ note: string, t: any }> = ({ note, t }) => 
                                    })}
                                </div>
                            ) : (
-                               <div>{renderBoldText(section.content)}</div>
+                               <div className="space-y-1">
+                                   {section.content.split('\n').map((line, i) => {
+                                       const trimmed = line.trim();
+                                       const isListItem = trimmed.startsWith('- ') || trimmed.startsWith('* ');
+                                       
+                                       if (isListItem) {
+                                           return (
+                                               <div key={i} className="flex items-start gap-2 pl-2">
+                                                   <span className="text-sky-500 mt-1.5 text-[10px]">•</span>
+                                                   <span className="flex-1">{renderBoldText(trimmed.replace(/^[-*]\s/, ''))}</span>
+                                               </div>
+                                           );
+                                       }
+                                       return (
+                                           <div key={i} className={`min-h-[1rem] ${trimmed === '' ? 'h-2' : ''}`}>
+                                               {renderBoldText(line)}
+                                           </div>
+                                       );
+                                   })}
+                               </div>
                            )}
                        </div>
                     </div>
@@ -177,11 +187,10 @@ const App: React.FC = () => {
   const [authLoading, setAuthLoading] = useState(true);
   const [isSupabaseConfigured, setIsSupabaseConfigured] = useState(true);
   
-  // --- ARCHITECT UPDATE: Default Profile now includes Chile as default ---
   const defaultProfile: ExtendedProfile = { 
       specialty: '', 
       language: 'es', 
-      country: 'Chile', // ⚡ Default establecido a Chile
+      country: 'Chile', 
       title: 'Dr.', 
       fullName: '', 
       theme: 'dark' 
@@ -206,7 +215,7 @@ const App: React.FC = () => {
   const [suggestedQuestions, setSuggestedQuestions] = useState<SuggestedQuestion[]>([]);
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-
+  
   const recognitionRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -214,37 +223,33 @@ const App: React.FC = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
   const finalTranscriptRef = useRef('');
 
-  // 1. VALIDATION LOGIC
   const canGenerate = useMemo(() => {
       return context.age && context.sex && transcript.trim().length > 0;
   }, [context.age, context.sex, transcript]);
 
-  // --- UX FIX: CHAT-STYLE AUTO-GROW ---
+  // --- AUTO-GROW TEXTAREA LOGIC ---
   useEffect(() => {
       const el = textareaRef.current;
       if (!el) return;
-      if (isLoading || generatedNote) {
-          el.style.height = 'auto'; 
-          return;
-      }
+      
+      // 1. Reset height to 'auto' to correctly calculate scrollHeight if text was deleted
       el.style.height = 'auto'; 
-      const newHeight = Math.min(el.scrollHeight, 280);
-      el.style.height = `${newHeight}px`;
-      el.scrollTop = el.scrollHeight;
+      
+      // 2. Calculate new height based on content
+      const newHeight = Math.min(el.scrollHeight, 320); // 320px max height before scroll
+      
+      // 3. Apply new height (min 40px default)
+      el.style.height = `${Math.max(newHeight, 40)}px`;
   }, [transcript, isLoading, generatedNote]);
 
-  // NUEVO: Efecto de "Escucha Activa"
   useEffect(() => {
       if (!transcript || suggestedQuestions.length === 0) return;
-
       setSuggestedQuestions(prev => {
           let changed = false;
           const updated = prev.map(q => {
               if (q.asked) return q;
-              
               const isNowAsked = checkIfQuestionAsked(transcript, q.text);
               if (isNowAsked) changed = true;
-              
               return isNowAsked ? { ...q, asked: true } : q;
           });
           return changed ? updated : prev;
@@ -271,7 +276,6 @@ const App: React.FC = () => {
       return profile.language === 'pt' ? 'pt-BR' : profile.language === 'en' ? 'en-US' : 'es-ES';
   }, [profile.language]);
 
-  // TEMA PERSISTENTE
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark');
@@ -282,7 +286,6 @@ const App: React.FC = () => {
     }
   }, [profile.theme]);
 
-  // AUTH & CARGA
   useEffect(() => {
     const checkConfig = async () => {
         const url = (import.meta as any).env.VITE_SUPABASE_URL;
@@ -325,7 +328,7 @@ const App: React.FC = () => {
       const profileUpdate: any = { ...defaultProfile };
       if (data && !error) {
           profileUpdate.specialty = data.specialty || '';
-          profileUpdate.country = data.country || 'Chile'; // Fallback a Chile
+          profileUpdate.country = data.country || 'Chile'; 
           profileUpdate.language = data.language || 'es';
           profileUpdate.title = data.title || 'Dr.';
           profileUpdate.fullName = data.full_name || ''; 
@@ -387,31 +390,19 @@ const App: React.FC = () => {
   
   useEffect(() => { const timer = setTimeout(() => { if (isRecording && transcript.length > 50) fetchSuggestions(transcript, context); }, 2000); return () => clearTimeout(timer); }, [transcript, isRecording, context]);
 
-  // --- FETCH SUGGESTIONS (CORREGIDO PARA JSON) ---
   const fetchSuggestions = useCallback(async (currentTranscript: string, currentContext: ConsultationContext) => {
     setSuggestionsError(null);
     try {
-        // El servicio ahora devuelve un Array de objetos, NO un string
         const suggestionsArray = await generateSuggestionsStateless(profile, { ...currentContext, additionalContext: "" }, currentTranscript, t);
-        
         if (!suggestionsArray || suggestionsArray.length === 0) return;
-
         const newQuestions: SuggestedQuestion[] = suggestionsArray.map(s => {
-            // Mapeo de categorías de la API (Inglés) a Texto UI (Español/Portugués)
-            let categoryLabel = t('category_history'); // Fallback
-            
+            let categoryLabel = t('category_history'); 
             if (s.category === 'RED FLAG') categoryLabel = '🚩 ALERTA';
             else if (s.category === 'SCREENING') categoryLabel = t('category_systems_review');
             else if (s.category === 'DIAGNOSTIC') categoryLabel = t('category_current_illness');
             else if (s.category === 'EXAMINATION') categoryLabel = 'Examen';
-
-            return {
-                text: s.question,
-                category: categoryLabel,
-                asked: false
-            };
+            return { text: s.question, category: categoryLabel, asked: false };
         });
-
         setSuggestedQuestions(prev => {
              const existingNormalized = new Set(prev.map(q => normalizeTextForMatching(q.text)));
              const uniqueNewQuestions = newQuestions.filter(q => { 
@@ -424,7 +415,6 @@ const App: React.FC = () => {
         });
     } catch (error) { 
         console.error("Error fetching suggestions", error);
-        // Fail silently for UX smooth
     }
   }, [profile, t]);
 
@@ -471,7 +461,22 @@ const App: React.FC = () => {
     }
   }, [isRecording, context, profile.language, t, transcript]);
 
-  const handleFilesChange = (files: FileList | null) => { if (!files) return; setUploadedFiles(prev => [...prev, ...Array.from(files).map(file => ({ id: Math.random().toString(36).substring(7), file, previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined }))]); };
+  const handleFilesChange = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    const newFiles = Array.from(files).map(file => ({
+        id: Math.random().toString(36).substring(7),
+        file,
+        previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined
+    }));
+
+    setUploadedFiles(prev => [...prev, ...newFiles]);
+
+    if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+    }
+  };
+
   const handleRemoveFile = (id: string) => setUploadedFiles(prev => prev.filter(f => f.id !== id));
 
   const handleGenerateNote = async () => {
@@ -479,20 +484,37 @@ const App: React.FC = () => {
       const controller = new AbortController();
       abortControllerRef.current = controller;
 
+      // 1. CAPTURE TEXT & CLEAR STATE IMMEDIATELY to shrink the textarea
+      const textToGenerate = transcript;
+      if (!textToGenerate.trim()) return; // Safety check
+
       setIsLoading(true); setGeneratedNote(''); setAlerts([]); setViewingHistoryNoteId(null); scrollToTop();
+      
+      // Clear input immediately so useEffect collapses the height
+      setTranscript(''); 
+      if (textareaRef.current) textareaRef.current.style.height = 'auto';
       
       try {
           const fileParts: FilePart[] = []; for (const uploaded of uploadedFiles) { const base64 = await new Promise<string>((resolve) => { const reader = new FileReader(); reader.onloadend = () => resolve((reader.result as string).split(',')[1]); reader.readAsDataURL(uploaded.file); }); fileParts.push({ mimeType: uploaded.file.type, data: base64 }); }
           
-          // IMPORTANT: profile now includes 'country'
-          const stream = await generateClinicalNoteStream(profile, { ...context, additionalContext: "" }, transcript, fileParts, t);
+          // Use the captured variable 'textToGenerate', NOT the empty 'transcript' state
+          const stream = await generateClinicalNoteStream(profile, { ...context, additionalContext: "" }, textToGenerate, fileParts, t);
           let fullText = ''; 
           
           for await (const chunk of stream) { 
               if (controller.signal.aborted) { break; }
               if (chunk.text) { 
-                  fullText += chunk.text; 
-                  setGeneratedNote(prev => prev + chunk.text); 
+                  fullText = chunk.text; 
+                  const splitMarker = '&&&ALERTS_JSON_START&&&';
+                  let displayVersion = fullText;
+                  
+                  if (fullText.includes(splitMarker)) {
+                      displayVersion = fullText.split(splitMarker)[0];
+                  } else {
+                      displayVersion = fullText.replace(RE_ORPHAN_JSON_ARRAY, '');
+                  }
+                  
+                  setGeneratedNote(displayVersion.trim()); 
               } 
           }
           
@@ -505,33 +527,20 @@ const App: React.FC = () => {
 
           if (startIndex !== -1 && endIndex !== -1) {
               const jsonString = fullText.substring(startIndex + alertsStartMarker.length, endIndex).trim();
-              try {
-                  let parsedData = JSON.parse(jsonString);
-                  if (!Array.isArray(parsedData)) { parsedData = parsedData.alerta_clinica ? [parsedData.alerta_clinica] : [parsedData]; }
-                  
-                  const normalizedAlerts: ClinicalAlert[] = parsedData
-                      .map((item: any) => ({
-                          type: item.type || item.tipo_alerta || 'Alerta',
-                          severity: item.severity || (item.prioridad?.includes('MÁXIMA') ? 'High' : 'Medium'),
-                          title: item.title || item.tipo_alerta || 'Alerta Detectada',
-                          details: item.details || item.mensaje || '',
-                          recommendation: item.recommendation || (Array.isArray(item.acciones_recomendadas) ? item.acciones_recomendadas.join('. ') : item.acciones_recomendadas) || ''
-                      }))
-                      .filter((alert: ClinicalAlert) => {
-                          const titleUpper = alert.title.toUpperCase();
-                          return !titleUpper.includes('CIE-10') && !titleUpper.includes('ICD-10') && !titleUpper.includes('CODE');
-                      });
-                  setAlerts(normalizedAlerts);
-              } catch (e) { console.error("Error parsing alerts JSON:", e); }
-              setGeneratedNote(fullText.substring(0, startIndex).trim());
-          } else {
-              setGeneratedNote(fullText);
+              parseAndSetAlerts(jsonString);
+          } 
+          else {
+              const match = fullText.match(RE_ORPHAN_JSON_ARRAY);
+              if (match) {
+                  parseAndSetAlerts(match[0]);
+              }
           }
 
           if (session?.user) {
+              const cleanNote = fullText.includes(alertsStartMarker) ? fullText.split(alertsStartMarker)[0].trim() : fullText.replace(RE_ORPHAN_JSON_ARRAY, '').trim();
               await supabase.from('historical_notes').insert({ 
                   user_id: session.user.id, 
-                  content: fullText.split('&&&')[0].trim(),
+                  content: cleanNote,
                   patient_age: context.age, 
                   patient_sex: context.sex
               });
@@ -541,11 +550,34 @@ const App: React.FC = () => {
       } catch (error: any) { 
           if (error.name !== 'AbortError' && !controller.signal.aborted) {
               setGeneratedNote(prev => prev + `\n\n❌ ${parseAndHandleGeminiError(error, t('error_generating_note'))}`); 
+              // Optional: If it fails, restore the text so the user doesn't lose it
+              setTranscript(textToGenerate); 
           }
       } finally { 
           if (!controller.signal.aborted) setIsLoading(false); 
           if (abortControllerRef.current === controller) { abortControllerRef.current = null; }
       }
+  };
+
+  const parseAndSetAlerts = (jsonString: string) => {
+      try {
+          let parsedData = JSON.parse(jsonString);
+          if (!Array.isArray(parsedData)) { parsedData = parsedData.alerta_clinica ? [parsedData.alerta_clinica] : [parsedData]; }
+          
+          const normalizedAlerts: ClinicalAlert[] = parsedData
+              .map((item: any) => ({
+                  type: item.type || item.tipo_alerta || 'Alerta',
+                  severity: item.severity || (item.prioridad?.includes('MÁXIMA') ? 'High' : 'Medium'),
+                  title: item.title || item.tipo_alerta || 'Alerta Detectada',
+                  details: item.details || item.mensaje || '',
+                  recommendation: item.recommendation || (Array.isArray(item.acciones_recomendadas) ? item.acciones_recomendadas.join('. ') : item.acciones_recomendadas) || ''
+              }))
+              .filter((alert: ClinicalAlert) => {
+                  const titleUpper = alert.title.toUpperCase();
+                  return !titleUpper.includes('CIE-10') && !titleUpper.includes('ICD-10') && !titleUpper.includes('CODE');
+              });
+          setAlerts(normalizedAlerts);
+      } catch (e) { console.error("Error parsing alerts JSON:", e); }
   };
 
   const handleStopGeneration = () => {
@@ -778,7 +810,6 @@ const App: React.FC = () => {
                     <span className="text-xs font-bold text-slate-700 dark:text-white truncate">
                         {profile.title || 'Dr.'} {profile.fullName?.split(' ')[0] || 'Usuario'}
                     </span>
-                    {/* --- ARCHITECT UPDATE: Country Badge --- */}
                     <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-[10px] text-slate-500">{t('settings_label')}</span>
                         {profile.country && (
@@ -790,7 +821,7 @@ const App: React.FC = () => {
                                 {profile.country === 'Mexico' && '🇲🇽 Méx'}
                                 {profile.country === 'Brazil' && '🇧🇷 Bra'}
                                 {profile.country === 'United States' && '🇺🇸 USA'}
-                                {profile.country === 'Spain' && '🇪🇸 Esp'}
+                                {profile.country === 'Spain' && '🇪🇸 España'}
                                 {!['Chile','Colombia','Peru','Argentina','Mexico','Brazil','United States','Spain'].includes(profile.country) && profile.country}
                             </span>
                         )}
@@ -890,44 +921,46 @@ const App: React.FC = () => {
                             </div>
                         </div>
                      )}
+                     
+                     <FeedbackWidget 
+                        userId={session?.user?.id}
+                        t={t}
+                     />
+
                      <ClinicalNoteOutput note={generatedNote} t={t} />
                 </div>
             )}
         </div>
 
-        {/* --- 3. FLOATING INPUT BAR (Auto-collapse Logic) --- */}
-        <div className="absolute bottom-0 left-0 right-0 w-full p-4 bg-gradient-to-t from-slate-50 via-slate-50 dark:from-[#0f1115] dark:via-[#0f1115] to-transparent z-20">
-            <div className="max-w-3xl mx-auto">
+        {/* --- 3. FLOATING INPUT BAR (Refactored Auto-Grow) --- */}
+        <div className="absolute bottom-0 left-0 right-0 w-full bg-gradient-to-t from-slate-50 via-slate-50 dark:from-[#0f1115] dark:via-[#0f1115] to-transparent z-50 p-4">
+            <div className="mx-auto max-w-3xl flex flex-col">
                 
-                {/* SECCIÓN DE SUGERENCIAS MEJORADA: Burbujas con botón de cierre independiente */}
+                {/* Suggestions Area */}
                 {!generatedNote && suggestedQuestions.length > 0 && (
                     <div className="flex gap-2 overflow-x-auto pb-3 mask-linear-fade px-1">
                         {suggestedQuestions.filter(q => !q.asked).slice(0, 5).map((q, i) => (
                             <div key={i} className="flex-shrink-0 flex items-center bg-white/90 dark:bg-slate-800/90 shadow-sm border border-slate-200 dark:border-slate-700 rounded-full transition-all backdrop-blur-md group overflow-hidden">
                                 
-                                {/* PARTE 1: El Texto (Al hacer clic, se agrega al transcript) */}
                                 <button 
                                     onClick={() => setTranscript(prev => prev + (prev ? ' ' : '') + q.text)}
                                     className="pl-3 pr-2 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:text-sky-600 dark:hover:text-sky-300 flex items-center transition-colors"
                                 >
-                                    {/* Etiqueta pequeña con la categoría (ej: ANT) */}
                                     <span className="mr-1.5 opacity-50 text-[9px] uppercase font-bold tracking-wider border border-slate-300 dark:border-slate-600 px-1 rounded-[4px]">
                                         {q.category.substring(0, 3)}
                                     </span>
                                     {q.text}
                                 </button>
                                 
-                                {/* Separador visual (una linea finita entre el texto y la X) */}
                                 <div className="h-3 w-px bg-slate-200 dark:bg-slate-700"></div>
 
-                                {/* PARTE 2: La "X" (Al hacer clic, desaparece la sugerencia) */}
                                 <button 
                                     onClick={(e) => {
-                                        e.stopPropagation(); // Evita activar el otro botón
-                                        handleMarkQuestion(q.text); // Llama a la función que oculta la pregunta
+                                        e.stopPropagation(); 
+                                        handleMarkQuestion(q.text); 
                                     }}
                                     className="px-2 py-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors h-full flex items-center justify-center"
-                                    title="Descartar sugerencia"
+                                    title={t('dismiss_question')}
                                 >
                                     <XIcon className="h-3 w-3" />
                                 </button>
@@ -936,9 +969,10 @@ const App: React.FC = () => {
                     </div>
                 )}
 
-                <div className={`bg-white dark:bg-[#1e1f20] rounded-3xl border border-slate-200 dark:border-white/10 shadow-2xl shadow-slate-200/50 dark:shadow-black/50 transition-all duration-300 ${isRecording ? 'ring-2 ring-rose-500/50' : 'focus-within:ring-2 focus-within:ring-sky-500/50'}`}>
+                <div className={`bg-white dark:bg-[#1e1f20] border border-slate-200 dark:border-white/10 shadow-2xl shadow-slate-200/50 dark:shadow-black/50 transition-all duration-300 flex flex-col rounded-3xl ${isRecording ? 'ring-2 ring-rose-500/50' : 'focus-within:ring-2 focus-within:ring-sky-500/50'}`}>
                     
-                    <div className="flex items-center gap-2 px-4 pt-3 pb-1 overflow-x-auto">
+                    {/* Toolbar Row - Added relative z-20 to ensure Tooltips (z-70) are always top */}
+                    <div className="flex items-center gap-2 px-4 pt-3 pb-1 shrink-0 relative z-20">
                         <div className="relative group">
                              <input type="number" value={context.age} onChange={(e) => setContext({...context, age: e.target.value})} 
                                 placeholder={t('patient_age')}
@@ -955,19 +989,23 @@ const App: React.FC = () => {
                             </select>
                             <ChevronLeftIcon className="h-3 w-3 text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 -rotate-90 pointer-events-none"/>
                         </div>
-                        <button onClick={() => fileInputRef.current?.click()} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border transition-all ${uploadedFiles.length > 0 ? 'bg-sky-100 dark:bg-sky-500/20 text-sky-600 dark:text-sky-300 border-sky-200 dark:border-sky-500/30' : 'bg-slate-100 dark:bg-black/30 text-slate-500 dark:text-slate-400 border-transparent hover:bg-slate-200 dark:hover:bg-black/50'}`}>
-                             <UploadIcon className="h-3 w-3" />
-                             {uploadedFiles.length > 0 ? t('files_selected', {count: uploadedFiles.length}) : t('file_upload_label')}
-                        </button>
+                        
+                        {/* ATTACH BUTTON WITH FIXED TOOLTIP Z-INDEX */}
+                        <div className="relative group z-[60]">
+                            <button onClick={() => fileInputRef.current?.click()} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border transition-all ${uploadedFiles.length > 0 ? 'bg-sky-100 dark:bg-sky-500/20 text-sky-600 dark:text-sky-300 border-sky-200 dark:border-sky-500/30' : 'bg-slate-100 dark:bg-black/30 text-slate-500 dark:text-slate-400 border-transparent hover:bg-slate-200 dark:hover:bg-black/50'}`}>
+                                <UploadIcon className="h-3 w-3" />
+                                {uploadedFiles.length > 0 ? t('files_selected', {count: uploadedFiles.length}) : t('file_upload_label')}
+                            </button>
+                            <div className="absolute bottom-full left-0 mb-2 w-max px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[70] whitespace-nowrap">
+                                {t('file_upload_warning')}
+                            </div>
+                        </div>
                         <input type="file" ref={fileInputRef} multiple onChange={(e) => handleFilesChange(e.target.files)} className="hidden" accept="image/*, application/pdf" />
                         
-                        {(transcript || context.age || uploadedFiles.length > 0) && (
-                             <button onClick={handleClear} className="ml-auto text-slate-400 hover:text-rose-500 transition p-1"><TrashIcon className="h-3 w-3"/></button>
-                        )}
                     </div>
 
-                    <div className="px-4 py-2">
-                        {/* --- CHAT-STYLE TEXTAREA: Starts small, grows, collapses on generate --- */}
+                    {/* Auto-Growing Text Area - Standard z-index */}
+                    <div className="px-4 py-2 relative flex-grow flex flex-col min-h-0 z-10">
                         <textarea 
                             ref={textareaRef}
                             value={transcript} 
@@ -975,17 +1013,18 @@ const App: React.FC = () => {
                             onKeyDown={handleKeyDown} 
                             placeholder={t('transcript_placeholder')}
                             rows={1}
-                            className="w-full bg-transparent text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-600 text-sm resize-none outline-none custom-scrollbar leading-relaxed font-mono max-h-80 min-h-[40px]"
+                            className="w-full bg-transparent text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-600 text-sm resize-none outline-none custom-scrollbar leading-relaxed font-mono min-h-[40px] max-h-[320px]"
                             spellCheck={false}
                         />
                     </div>
 
-                    <div className="px-2 pb-2 flex justify-between items-center">
-                        <div className="flex items-center gap-1">
+                    {/* Bottom Action Bar */}
+                    <div className="px-2 pb-2 flex justify-between items-center shrink-0 mt-auto z-20 relative">
+                        <div className="flex items-center gap-1 pl-2">
                              {uploadedFiles.map(f => (
                                  <div key={f.id} className="relative group">
-                                     {f.previewUrl ? <img src={f.previewUrl} className="w-8 h-8 rounded-lg object-cover border border-slate-200 dark:border-white/10" /> : <div className="w-8 h-8 bg-slate-200 dark:bg-slate-800 rounded-lg flex items-center justify-center text-[8px] text-slate-500">{t('placeholder_doc')}</div>}
-                                     <button onClick={() => handleRemoveFile(f.id)} className="absolute -top-1 -right-1 bg-rose-500 rounded-full p-0.5 hidden group-hover:block"><XIcon className="h-2 w-2 text-white"/></button>
+                                     {f.previewUrl ? <img src={f.previewUrl} className="w-10 h-10 rounded-lg object-cover border border-slate-200 dark:border-white/10" /> : <div className="w-10 h-10 bg-slate-200 dark:bg-slate-800 rounded-lg flex items-center justify-center text-[8px] text-slate-500">{t('placeholder_doc')}</div>}
+                                     <button onClick={() => handleRemoveFile(f.id)} className="absolute -top-1.5 -right-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-full p-0.5 shadow-sm transition-transform hover:scale-110"><XIcon className="h-2.5 w-2.5"/></button>
                                  </div>
                              ))}
                         </div>
@@ -1016,9 +1055,13 @@ const App: React.FC = () => {
                                     >
                                         <SparklesIcon className="h-5 w-5 fill-current"/>
                                     </button>
-                                    {!canGenerate && (
+                                    {!canGenerate ? (
                                         <div className="absolute bottom-full right-0 mb-2 w-40 p-2 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none text-center z-50">
                                             {t('generate_disabled_tooltip')}
+                                        </div>
+                                    ) : (
+                                        <div className="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
+                                            {t('tooltip_generate_active')}
                                         </div>
                                     )}
                                 </div>
@@ -1026,6 +1069,7 @@ const App: React.FC = () => {
                         </div>
                     </div>
                 </div>
+                
                 <div className="text-center mt-2 text-[10px] text-slate-500 dark:text-slate-500">
                     {t('disclaimer_text')}
                 </div>
@@ -1034,7 +1078,6 @@ const App: React.FC = () => {
 
       </main>
 
-      {/* --- CONFIG MODAL --- */}
       {showProfile && (
          <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowProfile(false)}>
             <div className="bg-white dark:bg-[#0f172a] w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 relative" onClick={e => e.stopPropagation()}>
@@ -1065,7 +1108,6 @@ const App: React.FC = () => {
                         </select>
                     </div>
 
-                    {/* --- ARCHITECT UPDATE: Robust Country Selector with Auto-Language Logic --- */}
                     <div>
                         <label className="text-xs text-slate-500 uppercase font-bold">{t('profile_country')}</label>
                         <select 
@@ -1073,16 +1115,13 @@ const App: React.FC = () => {
                             onChange={(e) => {
                                 const selectedCountry = e.target.value;
                                 let newLang = editingProfile.language;
-
-                                // 🧠 Lógica Inteligente: Cambio de idioma basado en país
                                 if (selectedCountry === 'Brazil' || selectedCountry === 'Brasil') {
                                     newLang = 'pt';
                                 } else if (selectedCountry === 'United States' || selectedCountry === 'Estados Unidos') {
                                     newLang = 'en';
                                 } else {
-                                    newLang = 'es'; // Fallback a Español para resto de LATAM
+                                    newLang = 'es'; 
                                 }
-                                
                                 setEditingProfile({ 
                                     ...editingProfile, 
                                     country: selectedCountry,
@@ -1130,7 +1169,6 @@ const App: React.FC = () => {
          </div>
       )}
 
-      {/* MODAL DE CONFIRMACIÓN */}
       {confirmModal.isOpen && (
              <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
                  <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center">

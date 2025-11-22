@@ -1,5 +1,3 @@
-// src/services/geminiService.ts
-
 import { GoogleGenAI } from "@google/genai";
 import { Profile, ConsultationContext, FilePart, ClinicalSuggestion } from './types/gemini.types';
 import {
@@ -13,31 +11,38 @@ import {
   getLatamQueryInstruction
 } from './prompts/latamPrompts';
 
-// --- RE-EXPORT TYPES (CRUCIAL PARA APP.TSX) ---
+// Exportamos los tipos para uso en otros componentes si es necesario
 export type { Profile, ConsultationContext, FilePart, ClinicalAlert, ClinicalSuggestion } from './types/gemini.types';
 
-// --- Configuración ---
-const MODEL_ID = 'gemini-2.0-flash-exp'; // Recomendado: flash-exp o 1.5-flash
+// Usamos el modelo Flash por eficiencia y velocidad (y coste)
+const MODEL_ID = 'gemini-2.0-flash-exp'; 
 
+// --- GESTIÓN SEGURA DE API KEY ---
 const getApiKey = (): string => {
+  let key = "";
   try {
-    // @ts-ignore
-    return import.meta.env.VITE_GEMINI_API_KEY || "";
+    // @ts-ignore - Vite inyecta esto en tiempo de compilación
+    key = import.meta.env.VITE_GEMINI_API_KEY;
   } catch (e) {
+    console.error("Error leyendo variables de entorno (import.meta).");
+  }
+
+  if (!key || key === "") {
+    console.error("🛑 ERROR CRÍTICO: VITE_GEMINI_API_KEY no encontrada. Verifica la configuración en Vercel o tu archivo .env");
     return "";
   }
+  return key;
 };
 
-// --- Error Handling ---
 export const parseAndHandleGeminiError = (error: any, defaultMsg: string) => {
   console.error("Gemini Error:", error);
   if (error.message) {
+    // Limpiamos mensajes técnicos de Google para mostrar algo más amigable si es necesario
     return error.message.replace(new RegExp('\\[.*?\\]\\s*'), '');
   }
   return defaultMsg;
 };
 
-// --- SELECTOR DE PROMPTS SEGÚN PAÍS ---
 function getPromptsByCountry(
   profile: Profile,
   context: ConsultationContext,
@@ -61,7 +66,6 @@ function getPromptsByCountry(
   }
 }
 
-// --- GENERAR NOTA CLÍNICA (Streaming) ---
 export async function* generateClinicalNoteStream(
   profile: Profile,
   context: ConsultationContext,
@@ -70,7 +74,7 @@ export async function* generateClinicalNoteStream(
   t: (key: string) => string
 ) {
   const apiKey = getApiKey();
-  if (!apiKey) throw new Error("API Key not configured.");
+  if (!apiKey) throw new Error("API Key no configurada en Vercel/Entorno.");
 
   const ai = new GoogleGenAI({ apiKey });
   const hasFiles = fileParts && fileParts.length > 0;
@@ -82,14 +86,12 @@ export async function* generateClinicalNoteStream(
     hasFiles
   );
 
-  // Construir partes del prompt
   const promptParts: any[] = [
     { text: systemInstruction },
     { text: roleInstruction },
     { text: queryInstruction }
   ];
 
-  // Agregar archivos si existen
   if (hasFiles) {
     fileParts.forEach(part => {
       promptParts.push({
@@ -106,16 +108,28 @@ export async function* generateClinicalNoteStream(
       model: MODEL_ID,
       contents: [{ role: 'user', parts: promptParts }],
       config: {
-        temperature: 0.3, // Baja para precisión médica
-        maxOutputTokens: 3000, // Aumentado para notas completas
+        temperature: 0.1, 
+        maxOutputTokens: 4000,
         topP: 0.95,
         topK: 40
       }
     });
 
+    let accumulatedText = '';
+
     for await (const chunk of responseStream) {
       if (chunk.text) {
-        yield { text: chunk.text };
+        accumulatedText += chunk.text;
+        
+        // SOLO LIMPIEZA DE ARTEFACTOS MARKDOWN
+        // El JSON de alertas se procesa en el frontend (App.tsx)
+        let textToYield = accumulatedText
+            .replace(/```json/g, '') 
+            .replace(/```/g, '')
+            .replace(/\*\*\*\s*$/, '') 
+            .trim();
+
+        yield { text: textToYield };
       }
     }
   } catch (e: any) {
@@ -124,7 +138,6 @@ export async function* generateClinicalNoteStream(
   }
 }
 
-// --- SUGERENCIAS CLÍNICAS (Stateless) ---
 export const generateSuggestionsStateless = async (
   profile: Profile,
   context: ConsultationContext,
@@ -132,17 +145,19 @@ export const generateSuggestionsStateless = async (
   t: (key: string) => string
 ): Promise<ClinicalSuggestion[]> => {
   const apiKey = getApiKey();
-  if (!apiKey) return [];
+  if (!apiKey) {
+    console.warn("Sugerencias deshabilitadas: Falta API Key");
+    return [];
+  }
 
   const ai = new GoogleGenAI({ apiKey });
   
-  // Solo últimos 2000 caracteres para reducir tokens y costo
+  // COST SAVING: Limitamos el contexto a los últimos 2000 caracteres para sugerencias rápidas
   const recentTranscript = transcript.slice(-2000);
   
   const isChile = profile.country === 'Chile';
   const isBrazil = profile.country === 'Brazil';
 
-  // Adaptar idioma del prompt de sugerencias
   const languageInstructions = isBrazil
     ? 'Responda em português brasileiro.'
     : 'Responde en español.';
@@ -189,7 +204,6 @@ Genera JSON.
     });
 
     const text = response.text || '{"suggestions":[]}';
-    // Limpieza básica por si el modelo incluye backticks de markdown
     const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
     const parsed = JSON.parse(cleanText);
     return parsed.suggestions || [];

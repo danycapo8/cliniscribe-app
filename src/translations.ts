@@ -79,6 +79,13 @@ export const translations: Record<Language, Record<string, string>> = {
     // --- UPDATED LEGAL/SAFE TERMINOLOGY ---
     start_transcribing_tooltip: "Start Transcription (Speech-to-Text)",
     stop_transcribing_tooltip: "Stop Transcription",
+    tooltip_generate_active: "Generate Clinical Note",
+    tooltip_attach: "Add files...", // ACTUALIZADO
+    
+    // --- INPUT UI KEYS (NEW) ---
+    expand_input: "Expand view",
+    collapse_input: "Collapse view",
+    delete_all_input: "Clear input",
     
     // --- MISSING BUTTON KEYS FIXED ---
     button_word: "Word",
@@ -113,7 +120,6 @@ export const translations: Record<Language, Record<string, string>> = {
     copy_button_title: "Copy",
     transcript_placeholder: "Type patient context or press Transcribe to record...",
     record_disabled_tooltip: "Enter Age and Sex first",
-    // NUEVA CLAVE:
     generate_disabled_tooltip: "Enter Age, Sex and Clinical Context.", 
     start_recording: "Start Transcription",
     stop_recording: "Stop Transcription",
@@ -181,12 +187,31 @@ export const translations: Record<Language, Record<string, string>> = {
     login_footer: "Secure HIPAA-compliant environment",
     studies_justification_separator_instruction: "JUSTIFICATION:",
     
-    // Terminology Fix
     enter_age_sex_before_recording: "Please enter Age and Sex before transcribing.",
-    
     speech_recognition_not_supported: "Speech Recognition not supported.",
     speech_recognition_error: "Speech Error:",
-    error_generating_note: "Error generating note."
+    error_generating_note: "Error generating note.",
+
+    // --- FEEDBACK WIDGET KEYS ---
+    feedback_title: "How was this note?",
+    feedback_thanks: "Thanks for helping us improve!",
+    feedback_privacy_warning: "PRIVACY: Do not include names or PII.",
+    feedback_placeholder: "Describe the error briefly...",
+    feedback_report_button: "Send Report",
+    feedback_problem_title: "Report Issue",
+
+    tag_hallucination: "Hallucination",
+    tag_hallucination_desc: "AI invented info not in the audio.", 
+    tag_format: "Wrong Format",
+    tag_format_desc: "Bad structure, bolding, or spacing.", 
+    tag_missing: "Missing Info",
+    tag_missing_desc: "Omitted important clinical details.", 
+    tag_tone: "Wrong Tone",
+    tag_tone_desc: "Too informal, robotic, or repetitive.", 
+    tag_typo: "Typos",
+    tag_typo_desc: "Spelling or grammatical errors.", 
+    tag_other: "Other",
+    tag_other_desc: "Any other issue not listed."
   },
   es: {
     // --- NOTE STRUCTURE KEYS ---
@@ -227,6 +252,13 @@ export const translations: Record<Language, Record<string, string>> = {
     // --- UPDATED LEGAL/SAFE TERMINOLOGY ---
     start_transcribing_tooltip: "Iniciar Transcripción",
     stop_transcribing_tooltip: "Detener Transcripción",
+    tooltip_generate_active: "Generar Nota Clínica",
+    tooltip_attach: "Añadir archivos...", // ACTUALIZADO
+    
+    // --- INPUT UI KEYS (NEW) ---
+    expand_input: "Expandir vista",
+    collapse_input: "Contraer vista",
+    delete_all_input: "Limpiar entrada",
     
     // --- MISSING BUTTON KEYS FIXED ---
     button_word: "Word",
@@ -261,7 +293,6 @@ export const translations: Record<Language, Record<string, string>> = {
     copy_button_title: "Copiar",
     transcript_placeholder: "Escribe aquí antecedentes o contexto, y presiona el micrófono para transcribir...",
     record_disabled_tooltip: "Ingrese Edad y Sexo primero",
-    // NUEVA CLAVE:
     generate_disabled_tooltip: "Ingrese Edad, Sexo y Contexto Clínico.",
     start_recording: "Iniciar Transcripción",
     stop_recording: "Detener Transcripción",
@@ -329,12 +360,31 @@ export const translations: Record<Language, Record<string, string>> = {
     login_footer: "Entorno seguro compatible con HIPAA",
     studies_justification_separator_instruction: "JUSTIFICACIÓN:",
     
-    // Terminology Fix
     enter_age_sex_before_recording: "Ingrese Edad y Sexo antes de transcribir.",
-    
     speech_recognition_not_supported: "Navegador no compatible con voz.",
     speech_recognition_error: "Error de voz:",
-    error_generating_note: "Error generando la nota."
+    error_generating_note: "Error generando la nota.",
+
+    // --- FEEDBACK WIDGET KEYS ---
+    feedback_title: "¿Qué tal quedó la nota?",
+    feedback_thanks: "¡Gracias por ayudarnos a mejorar!",
+    feedback_privacy_warning: "PRIVACIDAD: No incluyas nombres ni datos sensibles.",
+    feedback_placeholder: "Describe el error brevemente...",
+    feedback_report_button: "Enviar Reporte",
+    feedback_problem_title: "Reportar Problema",
+
+    tag_hallucination: "Alucinación / Dato Falso",
+    tag_hallucination_desc: "La IA inventó información no dicha.", 
+    tag_format: "Formato Incorrecto",
+    tag_format_desc: "Mala estructura, negritas o espaciado.", 
+    tag_missing: "Faltó Información",
+    tag_missing_desc: "Omitió datos clínicos importantes.", 
+    tag_tone: "Tono Incorrecto",
+    tag_tone_desc: "Lenguaje muy informal o robótico.", 
+    tag_typo: "Errores Ortográficos",
+    tag_typo_desc: "Faltas de ortografía o gramática.", 
+    tag_other: "Otro",
+    tag_other_desc: "Cualquier otro problema."
   },
   pt: {
     // --- NOTE STRUCTURE KEYS ---
@@ -372,6 +422,13 @@ export const translations: Record<Language, Record<string, string>> = {
     // --- UPDATED LEGAL/SAFE TERMINOLOGY ---
     start_transcribing_tooltip: "Iniciar Transcrição",
     stop_transcribing_tooltip: "Parar Transcrição",
+    tooltip_generate_active: "Gerar Nota Clínica",
+    tooltip_attach: "Adicionar arquivos...", // ACTUALIZADO
+    
+    // --- INPUT UI KEYS (NEW) ---
+    expand_input: "Expandir visualização",
+    collapse_input: "Recolher visualização",
+    delete_all_input: "Limpar entrada",
     
     // --- MISSING BUTTON KEYS FIXED ---
     button_word: "Word",
@@ -407,7 +464,6 @@ export const translations: Record<Language, Record<string, string>> = {
     copy_button_title: "Copiar",
     transcript_placeholder: "Digite o contexto aqui ou pressione Transcrever para gravar...",
     record_disabled_tooltip: "Insira Idade e Sexo primeiro",
-    // NUEVA CLAVE:
     generate_disabled_tooltip: "Insira Idade, Sexo e Contexto Clínico.",
     start_recording: "Iniciar Transcrição",
     stop_recording: "Parar Transcrição",
@@ -449,6 +505,7 @@ export const translations: Record<Language, Record<string, string>> = {
     delete_note_button: "Excluir",
     delete_note_aria: "Excluir Nota",
     export_pdf_button: "Exportar PDF",
+    export_word_aria: "Exportar Word",
     pdf_title: "Nota Clínica",
     pdf_generated_by: "Gerado por CliniScribe em",
     pdf_date_locale: "pt-BR",
@@ -477,12 +534,30 @@ export const translations: Record<Language, Record<string, string>> = {
     login_footer: "Ambiente seguro compatível com HIPAA",
     studies_justification_separator_instruction: "JUSTIFICATIVA:",
     
-    // Terminology Fix
     enter_age_sex_before_recording: "Por favor, insira Idade e Sexo antes de transcrever.",
-    
     speech_recognition_not_supported: "Navegador não suportado.",
     speech_recognition_error: "Erro de voz:",
     error_generating_note: "Erro ao gerar nota.",
-    export_word_aria: "Exportar Word"
+
+    // --- FEEDBACK WIDGET KEYS ---
+    feedback_title: "Como ficou a nota?",
+    feedback_thanks: "Obrigado por nos ajudar a melhorar!",
+    feedback_privacy_warning: "PRIVACIDADE: Não inclua nomes ou dados sensíveis.",
+    feedback_placeholder: "Descreva o erro brevemente...",
+    feedback_report_button: "Enviar Relatório",
+    feedback_problem_title: "Relatar Problema",
+
+    tag_hallucination: "Alucinação / Dado Falso",
+    tag_hallucination_desc: "A IA inventou informações não ditas.", 
+    tag_format: "Formato Incorreto",
+    tag_format_desc: "Estrutura, negrito ou espaçamento ruim.", 
+    tag_missing: "Faltou Informação",
+    tag_missing_desc: "Omitiu dados clínicos importantes.", 
+    tag_tone: "Tom Incorreto",
+    tag_tone_desc: "Linguagem muito informal ou robótica.", 
+    tag_typo: "Erros Ortográficos",
+    tag_typo_desc: "Erros de ortografia ou gramática.", 
+    tag_other: "Outro",
+    tag_other_desc: "Qualquer outro problema."
   }
 };
