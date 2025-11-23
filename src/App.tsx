@@ -130,7 +130,8 @@ const ClinicalNoteOutput: React.FC<{ note: string, t: any }> = ({ note, t }) => 
                                {isHypothesis ? <LightbulbIcon className="h-4 w-4 text-amber-500 dark:text-amber-400" /> : <div className="w-1.5 h-1.5 bg-sky-500 rounded-full shadow-[0_0_8px_rgba(14,165,233,0.8)]"></div>}
                                {section.title}
                            </h3>
-                           {!isSpecialSection && <CopyButton text={section.content} title={t('copy_button_title')} className="hover:bg-slate-100 dark:hover:bg-slate-800" />}
+                           {/* MODIFICADO: Permitimos CopyButton si es Studies, aunque sea SpecialSection */}
+                           {(!isSpecialSection || isStudies) && <CopyButton text={section.content} title={t('copy_button_title')} className="hover:bg-slate-100 dark:hover:bg-slate-800" />}
                        </div>
                        <div className="text-slate-600 dark:text-slate-300 leading-relaxed text-sm font-normal">
                            {isSpecialSection ? (
@@ -227,20 +228,25 @@ const App: React.FC = () => {
       return context.age && context.sex && transcript.trim().length > 0;
   }, [context.age, context.sex, transcript]);
 
-  // --- AUTO-GROW TEXTAREA LOGIC ---
+  // --- AUTO-GROW TEXTAREA LOGIC (MANTENIENDO TU FIX PREVIO) ---
   useEffect(() => {
       const el = textareaRef.current;
       if (!el) return;
       
-      // 1. Reset height to 'auto' to correctly calculate scrollHeight if text was deleted
+      // 1. Resetear siempre para calcular bien
       el.style.height = 'auto'; 
       
-      // 2. Calculate new height based on content
-      const newHeight = Math.min(el.scrollHeight, 320); // 320px max height before scroll
-      
-      // 3. Apply new height (min 40px default)
-      el.style.height = `${Math.max(newHeight, 40)}px`;
-  }, [transcript, isLoading, generatedNote]);
+      // LÓGICA DE RETRACCIÓN:
+      // Si está cargando (isLoading) O si ya hay una nota generada (generatedNote) y no estamos grabando,
+      // forzamos que el cuadro se retraiga a su tamaño mínimo (40px).
+      if (isLoading || (generatedNote && !isRecording)) {
+          el.style.height = '40px'; 
+      } else {
+          // Si no hay nota y no carga (estamos editando o empezando), crece con el contenido.
+          const newHeight = Math.min(el.scrollHeight, 320); // 320px max height
+          el.style.height = `${Math.max(newHeight, 40)}px`;
+      }
+  }, [transcript, isLoading, generatedNote, isRecording]);
 
   useEffect(() => {
       if (!transcript || suggestedQuestions.length === 0) return;
@@ -484,20 +490,15 @@ const App: React.FC = () => {
       const controller = new AbortController();
       abortControllerRef.current = controller;
 
-      // 1. CAPTURE TEXT & CLEAR STATE IMMEDIATELY to shrink the textarea
+      // 1. CAPTURE TEXT
       const textToGenerate = transcript;
-      if (!textToGenerate.trim()) return; // Safety check
+      if (!textToGenerate.trim()) return; 
 
       setIsLoading(true); setGeneratedNote(''); setAlerts([]); setViewingHistoryNoteId(null); scrollToTop();
-      
-      // Clear input immediately so useEffect collapses the height
-      setTranscript(''); 
-      if (textareaRef.current) textareaRef.current.style.height = 'auto';
       
       try {
           const fileParts: FilePart[] = []; for (const uploaded of uploadedFiles) { const base64 = await new Promise<string>((resolve) => { const reader = new FileReader(); reader.onloadend = () => resolve((reader.result as string).split(',')[1]); reader.readAsDataURL(uploaded.file); }); fileParts.push({ mimeType: uploaded.file.type, data: base64 }); }
           
-          // Use the captured variable 'textToGenerate', NOT the empty 'transcript' state
           const stream = await generateClinicalNoteStream(profile, { ...context, additionalContext: "" }, textToGenerate, fileParts, t);
           let fullText = ''; 
           
@@ -514,7 +515,10 @@ const App: React.FC = () => {
                       displayVersion = fullText.replace(RE_ORPHAN_JSON_ARRAY, '');
                   }
                   
-                  setGeneratedNote(displayVersion.trim()); 
+                  // Solo actualizamos si NO ha sido abortado
+                  if (!controller.signal.aborted) {
+                      setGeneratedNote(displayVersion.trim()); 
+                  }
               } 
           }
           
@@ -550,8 +554,6 @@ const App: React.FC = () => {
       } catch (error: any) { 
           if (error.name !== 'AbortError' && !controller.signal.aborted) {
               setGeneratedNote(prev => prev + `\n\n❌ ${parseAndHandleGeminiError(error, t('error_generating_note'))}`); 
-              // Optional: If it fails, restore the text so the user doesn't lose it
-              setTranscript(textToGenerate); 
           }
       } finally { 
           if (!controller.signal.aborted) setIsLoading(false); 
@@ -584,8 +586,10 @@ const App: React.FC = () => {
       if (abortControllerRef.current) {
           abortControllerRef.current.abort();
           abortControllerRef.current = null;
-          setIsLoading(false);
       }
+      setGeneratedNote('');
+      setAlerts([]);
+      setIsLoading(false);
   };
 
   const handleClear = () => setConfirmModal({ isOpen: true, type: 'clear_input' });
@@ -732,7 +736,7 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-[#0f1115] text-slate-800 dark:text-slate-200 font-sans overflow-hidden transition-colors duration-300">
-      <aside className={`flex-shrink-0 bg-white dark:bg-[#02040a] border-r border-slate-200 dark:border-white/5 flex flex-col transition-all duration-300 fixed md:relative z-50 h-full ${isSidebarOpen ? 'w-72 translate-x-0' : 'w-72 -translate-x-full md:w-0 md:translate-x-0'} shadow-2xl md:shadow-none`}>
+      <aside className={`flex-shrink-0 bg-white dark:bg-[#02040a] border-r border-slate-200 dark:border-white/5 flex flex-col transition-all duration-300 fixed md:relative z-[100] h-full ${isSidebarOpen ? 'w-72 translate-x-0' : 'w-72 -translate-x-full md:w-0 md:translate-x-0'} shadow-2xl md:shadow-none`}>
          <div className="p-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
                  <div className="bg-gradient-to-br from-sky-500 to-indigo-600 p-1.5 rounded-lg">
@@ -839,7 +843,7 @@ const App: React.FC = () => {
          </div>
       </aside>
 
-      {isSidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setIsSidebarOpen(false)}></div>}
+      {isSidebarOpen && <div className="fixed inset-0 bg-black/50 z-[90] md:hidden" onClick={() => setIsSidebarOpen(false)}></div>}
 
       <main className="flex-1 flex flex-col relative h-full min-w-0 bg-white dark:bg-[#0f1115]">
         
@@ -1043,7 +1047,7 @@ const App: React.FC = () => {
                             </div>
                             
                             {isLoading ? (
-                                <button onClick={handleStopGeneration} className="p-3 rounded-xl bg-rose-600 text-white shadow-lg shadow-rose-500/20 hover:bg-rose-500 transition-all transform active:scale-95">
+                                <button onClick={handleStopGeneration} className="p-3 rounded-xl bg-rose-600 text-white shadow-lg shadow-rose-500/20 hover:bg-rose-50 transition-all transform active:scale-95">
                                     <StopIcon className="h-5 w-5 fill-current" />
                                 </button>
                             ) : (
