@@ -1,4 +1,5 @@
-import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
+// src/geminiService.ts
+
 import { Profile, ConsultationContext, FilePart, ClinicalSuggestion } from './types/gemini.types';
 import {
   getChileSystemInstruction,
@@ -34,35 +35,27 @@ const CLINICAL_NOTE_CONFIG = {
 };
 
 // ============================================================================
-// API KEY HANDLER
+// SAFETY SETTINGS (Desactivados para contenido médico)
 // ============================================================================
-
-const getApiKey = (): string => {
-  let key = "";
-  try {
-    // @ts-ignore
-    key = import.meta.env.VITE_GEMINI_API_KEY;
-  } catch (e) { 
-    console.error("Error accediendo a variables de entorno"); 
-  }
-  
-  if (!key) console.error("🛑 ERROR: API Key de Gemini no encontrada.");
-  return key || "";
-};
-
-// NUEVO: Handler para DeepSeek
-const getDeepSeekApiKey = (): string => {
-  let key = "";
-  try {
-    // @ts-ignore
-    key = import.meta.env.VITE_DEEPSEEK_API_KEY;
-  } catch (e) { console.error("Error accediendo a DeepSeek Env"); }
-  
-  // Si necesitas hardcodear temporalmente para pruebas, hazlo aquí, pero borra antes de producción
-  // if (!key) return "sk-xxxxxxxxxxxxxxxx";
-  
-  return key || "";
-};
+// Nota: Ahora se envían al backend, pero mantenemos la estructura aquí
+const SAFETY_SETTINGS_OFF = [
+  {
+    category: 'HARM_CATEGORY_HATE_SPEECH',
+    threshold: 'BLOCK_NONE',
+  },
+  {
+    category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+    threshold: 'BLOCK_NONE',
+  },
+  {
+    category: 'HARM_CATEGORY_HARASSMENT',
+    threshold: 'BLOCK_NONE',
+  },
+  {
+    category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+    threshold: 'BLOCK_NONE',
+  },
+];
 
 // ============================================================================
 // ERROR HANDLING
@@ -82,29 +75,6 @@ export const parseAndHandleGeminiError = (error: any, defaultMsg: string): strin
   }
   return defaultMsg;
 };
-
-// ============================================================================
-// SAFETY SETTINGS (Desactivados para contenido médico)
-// ============================================================================
-
-const SAFETY_SETTINGS_OFF = [
-  {
-    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-    threshold: HarmBlockThreshold.BLOCK_NONE,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-    threshold: HarmBlockThreshold.BLOCK_NONE,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-    threshold: HarmBlockThreshold.BLOCK_NONE,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-    threshold: HarmBlockThreshold.BLOCK_NONE,
-  },
-];
 
 // ============================================================================
 // SELECTOR DE PROMPTS POR PAÍS
@@ -134,7 +104,7 @@ function getPromptsByCountry(
 }
 
 // ============================================================================
-// GENERACIÓN DE NOTA CLÍNICA (Stream)
+// GENERACIÓN DE NOTA CLÍNICA (Stream via Backend)
 // ============================================================================
 
 export async function* generateClinicalNoteStream(
@@ -144,13 +114,10 @@ export async function* generateClinicalNoteStream(
   fileParts: FilePart[],
   t: (key: string) => string
 ) {
-  const apiKey = getApiKey();
-  if (!apiKey) throw new Error("Falta API Key");
-
-  const ai = new GoogleGenAI({ apiKey });
+  // 1. Ya NO buscamos la API KEY aquí (seguridad).
+  
   const hasFiles = fileParts && fileParts.length > 0;
-
-  console.log(`🚀 CliniScribe: Generando nota con ${MODEL_ID} | País: ${profile.country} | Archivos: ${hasFiles}`);
+  console.log(`🚀 CliniScribe: Solicitando nota al Backend | País: ${profile.country}`);
 
   const { systemInstruction, roleInstruction, queryInstruction } = getPromptsByCountry(
     profile, 
@@ -159,7 +126,7 @@ export async function* generateClinicalNoteStream(
     hasFiles
   );
 
-  // Construir partes del mensaje
+  // Construir partes del mensaje para enviar al backend
   const userParts: any[] = [
     { text: roleInstruction },
     { text: queryInstruction }
@@ -178,26 +145,49 @@ export async function* generateClinicalNoteStream(
   }
 
   try {
-    const responseStream = await ai.models.generateContentStream({
-      model: MODEL_ID,
-      contents: [{ role: 'user', parts: userParts }],
-      config: {
-        systemInstruction: { parts: [{ text: systemInstruction }] },
-        temperature: CLINICAL_NOTE_CONFIG.temperature,
-        maxOutputTokens: CLINICAL_NOTE_CONFIG.maxOutputTokens,
-        topP: CLINICAL_NOTE_CONFIG.topP,
-        topK: CLINICAL_NOTE_CONFIG.topK,
-        safetySettings: SAFETY_SETTINGS_OFF,
-      }
+    // 🔒 LLAMADA AL BACKEND (Proxy Seguro)
+    const response = await fetch('/api/gemini', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        // Enviamos la configuración y contenido al servidor
+        model: MODEL_ID,
+        contents: [{ role: 'user', parts: userParts }],
+        config: {
+          systemInstruction: { parts: [{ text: systemInstruction }] },
+          temperature: CLINICAL_NOTE_CONFIG.temperature,
+          maxOutputTokens: CLINICAL_NOTE_CONFIG.maxOutputTokens,
+          topP: CLINICAL_NOTE_CONFIG.topP,
+          topK: CLINICAL_NOTE_CONFIG.topK,
+          safetySettings: SAFETY_SETTINGS_OFF,
+        }
+      })
     });
 
+    if (!response.ok) {
+        throw new Error(`Error del servidor: ${response.statusText}`);
+    }
+    
+    if (!response.body) throw new Error("No se recibió stream del servidor");
+
+    // Procesar Stream desde el fetch
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
     let accumulatedText = '';
 
-    for await (const chunk of responseStream) {
-      if (chunk.text) {
-        accumulatedText += chunk.text;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      // Decodificar el chunk recibido del servidor
+      const chunkText = decoder.decode(value, { stream: true });
+      
+      if (chunkText) {
+        accumulatedText += chunkText;
         
-        // Limpiar output para streaming
+        // Limpiar output para streaming (misma lógica que tenías)
         let textToYield = accumulatedText
           .replace(/```json/g, '') 
           .replace(/```/g, '')
@@ -208,7 +198,7 @@ export async function* generateClinicalNoteStream(
       }
     }
 
-    // Post-procesamiento: validar dosis pediátricas
+    // Post-procesamiento: validar dosis pediátricas (Lógica intacta)
     const age = parseInt(context.age) || 0;
     if (age < 18) {
       const validationWarnings = validatePediatricDosing(accumulatedText);
@@ -218,12 +208,12 @@ export async function* generateClinicalNoteStream(
     }
 
   } catch (e: any) {
-    throw new Error(parseAndHandleGeminiError(e, "Error generando nota clínica."));
+    throw new Error(parseAndHandleGeminiError(e, "Error conectando con el servicio de generación."));
   }
 }
 
 // ============================================================================
-// GENERACIÓN DE SUGERENCIAS (DEEPSEEK V3 - ESTABILIDAD JSON)
+// GENERACIÓN DE SUGERENCIAS (DEEPSEEK V3 - VIA PROXY)
 // ============================================================================
 
 export const generateSuggestionsStateless = async (
@@ -233,69 +223,56 @@ export const generateSuggestionsStateless = async (
   t: (key: string) => string
 ): Promise<ClinicalSuggestion[]> => {
   
-  const deepSeekKey = getDeepSeekApiKey();
-  
-  // Si no hay key configurada, retorna el fallback inmediatamente sin intentar fetch
-  if (!deepSeekKey) {
-    console.warn("⚠️ Falta VITE_DEEPSEEK_API_KEY. Usando preguntas de respaldo.");
-    return getFallbackQuestions(); 
-  }
+  // Nota: Ya no leemos DEEPSEEK_API_KEY aquí.
 
   if (!transcript || transcript.length < 15) return [];
 
   const queryPrompt = getChileSuggestionsPrompt(transcript, context, profile);
 
   try {
-    console.log("🚀 Consultando DeepSeek API (Modo JSON)...");
+    console.log("🚀 Consultando DeepSeek vía Proxy Vercel (Modo JSON)...");
 
-    // Llamada nativa a la API de DeepSeek
-    const response = await fetch("https://api.deepseek.com/chat/completions", {
+    // 🔒 LLAMADA AL BACKEND (api/deepseek.ts)
+    // Ya no enviamos headers de autorización, el servidor se encarga.
+    const response = await fetch("/api/deepseek", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${deepSeekKey}`
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "deepseek-chat", // Modelo V3 (Rápido, barato, inteligente)
         messages: [
           { role: "system", content: "You are a helpful medical assistant. You ALWAYS output strictly valid JSON." },
           { role: "user", content: queryPrompt }
-        ],
-        response_format: { type: "json_object" }, // ⚡ Clave del éxito: JSON Forzado
-        temperature: 0.5,
-        max_tokens: 1000,
-        stream: false
+        ]
+        // El backend se encarga de inyectar el modelo, temperatura y response_format
       })
     });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(`DeepSeek API Error ${response.status}: ${errorData?.error?.message || response.statusText}`);
+      throw new Error(`Proxy Error ${response.status}: ${errorData?.error || response.statusText}`);
     }
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || "";
     
-    console.log("🤖 DeepSeek Raw Response:", content);
-
-    // Parseo robusto
+    // Parseo robusto (Misma lógica intacta)
     let parsed: any = [];
     try {
         parsed = JSON.parse(content);
     } catch (parseError) {
-        // Si falla el parseo directo (raro con json_object), limpiamos posibles marcas
         const clean = content.replace(/```json/g, '').replace(/```/g, '').trim();
         parsed = JSON.parse(clean);
     }
 
-    // Normalización de estructura (DeepSeek a veces devuelve { "suggestions": [...] })
+    // Normalización de estructura
     if (!Array.isArray(parsed)) {
         if (parsed.suggestions && Array.isArray(parsed.suggestions)) parsed = parsed.suggestions;
         else if (parsed.questions && Array.isArray(parsed.questions)) parsed = parsed.questions;
-        else parsed = [parsed]; // Objeto único a array
+        else parsed = [parsed];
     }
 
-    // Mapeo y filtrado final
+    // Mapeo y filtrado final (Misma lógica intacta)
     const result = parsed.map((s: any) => ({
       question: s.q || s.question || s.text || 'Consulta pendiente',
       category: mapCategoryToUI(s.c || s.category),
@@ -308,14 +285,13 @@ export const generateSuggestionsStateless = async (
     return result;
 
   } catch (e) {
-    console.error('❌ Error en DeepSeek Suggestions:', e);
-    // Fallback visual para que la UI no se rompa
+    console.error('❌ Error en DeepSeek Proxy:', e);
     return getFallbackQuestions();
   }
 };
 
 // ============================================================================
-// HELPERS & FALLBACKS
+// HELPERS & FALLBACKS (INTACTOS)
 // ============================================================================
 
 function getFallbackQuestions(): ClinicalSuggestion[] {
@@ -378,7 +354,7 @@ function validatePediatricDosing(note: string): string[] {
 }
 
 // ============================================================================
-// FUNCIONES DE TESTING Y VALIDACIÓN
+// FUNCIONES DE TESTING Y VALIDACIÓN (INTACTAS)
 // ============================================================================
 
 export function checkForHallucinations(note: string, transcript: string): boolean {
