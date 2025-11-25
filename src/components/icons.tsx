@@ -21,17 +21,37 @@ import {
   Moon as MoonIcon,
   Sun as SunIcon,
   LogOut as LogOutIcon,
-  // --- NUEVOS ICONOS AGREGADOS ---
   ThumbsUp as ThumbsUpIcon,
-  ThumbsDown as ThumbsDownIcon
+  ThumbsDown as ThumbsDownIcon,
+  Video as VideoIcon,
+  Stethoscope as StethoscopeIcon
 } from 'lucide-react';
 
 export { 
-  QuillIcon, SparklesIcon, TrashIcon, CopyIcon, SpinnerIcon, MicrophoneIcon, StopIcon, 
-  UploadIcon, LightbulbIcon, CheckCircleIcon, CheckIcon, XIcon, HistoryIcon, 
-  AlertTriangleIcon, FileDownIcon, EyeIcon, UserIcon, NotesIcon, ChevronLeftIcon,
-  MoonIcon, SunIcon, LogOutIcon,
-  // --- EXPORTAR LOS NUEVOS ---
-  ThumbsUpIcon,
-  ThumbsDownIcon
+  QuillIcon, 
+  SparklesIcon, 
+  TrashIcon, 
+  CopyIcon, 
+  SpinnerIcon, 
+  MicrophoneIcon, 
+  StopIcon, 
+  UploadIcon, 
+  LightbulbIcon, 
+  CheckCircleIcon, 
+  CheckIcon, 
+  XIcon, 
+  HistoryIcon, 
+  AlertTriangleIcon, 
+  FileDownIcon, 
+  EyeIcon, 
+  UserIcon, 
+  NotesIcon, 
+  ChevronLeftIcon,
+  MoonIcon, 
+  SunIcon, 
+  LogOutIcon, 
+  ThumbsUpIcon, 
+  ThumbsDownIcon,
+  VideoIcon,
+  StethoscopeIcon
 };

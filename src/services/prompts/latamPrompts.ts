@@ -58,14 +58,22 @@ export function getLatamRoleInstruction(
 ): string {
   const config = getCountryConfig(country);
   const isBrazil = country === 'Brazil';
+  
+  // --- LÓGICA DE MODALIDAD (Telemedicina vs Presencial) ---
+  const isTelemedicine = context.modality === 'telemedicine';
 
   if (isBrazil) {
+    const modalityText = isTelemedicine 
+      ? "⚠️ MODALIDADE: TELEMEDICINA\n- EXAME FÍSICO RESTRITO: Apenas descreva o visível por vídeo (inspeção geral, respiração). NÃO invente dados de palpação/ausculta não realizados."
+      : "MODALIDADE: PRESENCIAL\n- Exame físico completo padrão conforme ditado.";
+
     return `
 CONTEXTO DO ATENDIMENTO:
 - Especialidade médica: ${profile.specialty}
 - Paciente: ${context.age} anos, sexo ${context.sex}
 - País: Brasil
 - Sistema de saúde: SUS/Plano Privado
+- ${modalityText}
 - Contexto adicional: ${context.additionalContext || 'Não especificado'}
 
 DIRETRIZES APLICÁVEIS:
@@ -73,12 +81,18 @@ ${config.medicalGuidelines.map(g => `- ${g}`).join('\n')}
     `.trim();
   }
 
+  // LATAM Spanish logic
+  const modalityText = isTelemedicine
+    ? "⚠️ MODALIDAD: TELEMEDICINA\n- EXAMEN FÍSICO RESTRINGIDO: Solo describe lo visible por cámara. PROHIBIDO inventar palpación/auscultación si no fue posible realizarla."
+    : "MODALIDAD: PRESENCIAL\n- Examen físico estándar completo.";
+
   return `
 CONTEXTO DE LA ATENCIÓN:
 - Especialidad médica: ${profile.specialty}
 - Paciente: ${context.age} años, sexo ${context.sex}
 - País: ${config.name}
 - Sistema de salud: ${config.insuranceSystems.join('/')}
+- ${modalityText}
 - Contexto adicional: ${context.additionalContext || 'No especificado'}
 
 GUÍAS APLICABLES:
