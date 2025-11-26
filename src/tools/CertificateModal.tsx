@@ -5,7 +5,7 @@ import { CertificateType, CertificateConfig, CERTIFICATE_OPTIONS } from '../type
 // CORRECCIÓN: Servicios en ../services
 import { generateCertificateData } from '../services/certificateService';
 // CORRECCIÓN: Config en ../Config (Respetando la mayúscula de tu imagen)
-import { generateCertificateText } from '../Config/certificateTemplates'; 
+import { generateCertificateText } from '../config/certificateTemplates';
 // CORRECCIÓN: Tipos de gemini (ajusta si tus tipos están en src/services/types o src/types)
 // Asumiendo que gemini.types.ts está en src/services/types:
 import { ConsultationContext, Profile } from '../services/types/gemini.types';
