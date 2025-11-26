@@ -87,6 +87,7 @@ export const translations: Record<Language, Record<string, string>> = {
     // [NUEVO] Tooltips para sugerencias manuales
     suggest_questions_tooltip: "Analyze transcript and suggest key questions",
     suggesting_loading: "Thinking...",
+    copilot_active: "Copilot Active", // NUEVA: Copilot Activo
     
     // --- UPDATED LEGAL/SAFE TERMINOLOGY ---
     start_transcribing_tooltip: "Start Transcription",
@@ -160,6 +161,7 @@ export const translations: Record<Language, Record<string, string>> = {
     category_red_flag: "🚩 RED FLAG",
     category_examination: "Physical Exam",
     category_diagnostic: "Diagnosis",
+    category_management: "Management", // NUEVA: Gestión
     error_fetching_suggestions: "Error fetching",
     tab_note: "Note",
     tab_history: "History",
@@ -229,7 +231,22 @@ export const translations: Record<Language, Record<string, string>> = {
     tag_typo: "Typos",
     tag_typo_desc: "Spelling errors.", 
     tag_other: "Other",
-    tag_other_desc: "Other issue."
+    tag_other_desc: "Other issue.",
+
+    // --- PRODUCTIVITY/UTILITY KEYS (New) ---
+    generating_analysis_voice: "Analyzing voice, context, and medical literature...",
+    tip_productivity_title: "Work faster with Split Screen",
+    tip_productivity_desc_1: "Did you know you can have CliniScribe and your Clinical Record open at the same time?",
+    tip_productivity_desc_2_win: "How to do it on Chrome / Edge:",
+    tip_productivity_step_1: "Right-click on your Clinical Record tab.",
+    tip_productivity_step_2: "Select the option \"Add tab to new split view\" (or similar).",
+    tip_productivity_step_3: "Select CliniScribe on the other side.",
+    tip_productivity_desc_3_final: "This allows you to copy and paste the generated note without constantly switching windows.",
+    tip_productivity_button: "Got it!",
+    audio_meter_title: "Input Monitor",
+    audio_meter_desc_1: "This bar should move when both speak.",
+    audio_meter_desc_2: "If the patient speaks and the bar DOES NOT move, the AI can't hear them.",
+    audio_meter_solution: "Solution: Disconnect headphones or use speakers.",
   },
   es: {
     // --- NOTE STRUCTURE KEYS ---
@@ -246,7 +263,7 @@ export const translations: Record<Language, Record<string, string>> = {
     field_cardiopulm: "Cardiovascular y Pulmonar",
     field_abdomen: "Abdomen",
     field_neuro: "Neurológico/Extremidades",
-    section_diagnosis: "Hipóteses Diagnósticas",
+    section_diagnosis: "Hipótesis Diagnósticas",
     section_plan: "Plan e Indicaciones",
     field_followup: "Control Médico",
     field_referral: "Derivación a",
@@ -288,8 +305,9 @@ export const translations: Record<Language, Record<string, string>> = {
     tooltip_modality_in_person: "Presencial",
     tooltip_modality_telemedicine: "Telemedicina",
     // [NUEVO] Tooltips para sugerencias manuales
-    suggest_questions_tooltip: "Analizar transcripción y sugerir preguntas",
+    suggest_questions_tooltip: "Analizar transcripción y sugerir preguntas clave",
     suggesting_loading: "Pensando...",
+    copilot_active: "Copiloto Activo", // NUEVA: Copilot Activo (de imagen)
     
     // --- UPDATED LEGAL/SAFE TERMINOLOGY ---
     start_transcribing_tooltip: "Transcribir",
@@ -363,6 +381,7 @@ export const translations: Record<Language, Record<string, string>> = {
     category_red_flag: "🚩 ALERTA",
     category_examination: "Examen Físico",
     category_diagnostic: "Diagnóstico",
+    category_management: "Terapéutica", // NUEVA: Gestión
     error_fetching_suggestions: "Error",
     tab_note: "Nota",
     tab_history: "Historial",
@@ -432,7 +451,22 @@ export const translations: Record<Language, Record<string, string>> = {
     tag_typo: "Ortografía",
     tag_typo_desc: "Errores escritura.", 
     tag_other: "Otro",
-    tag_other_desc: "Otro problema."
+    tag_other_desc: "Otro problema.",
+
+    // --- PRODUCTIVITY/UTILITY KEYS (New) ---
+    generating_analysis_voice: "Analizando voz, contexto y literatura médica...",
+    tip_productivity_title: "Trabaja más rápido con Pantalla Dividida",
+    tip_productivity_desc_1: "¿Sabías que puedes tener CliniScribe y tu Ficha Clínica abiertos al mismo tiempo?",
+    tip_productivity_desc_2_win: "Cómo hacerlo en Chrome / Edge:",
+    tip_productivity_step_1: "Haz clic derecho sobre la pestaña de tu Ficha Clínica.",
+    tip_productivity_step_2: "Selecciona la opción \"Añadir pestaña a la nueva vista dividida\" (o similar).",
+    tip_productivity_step_3: "Selecciona CliniScribe en el otro lado.",
+    tip_productivity_desc_3_final: "Esto te permitirá copiar y pegar la nota generada sin cambiar de ventana constantemente.",
+    tip_productivity_button: "¡Entendido!",
+    audio_meter_title: "Monitor de Entrada",
+    audio_meter_desc_1: "Esta barra debe moverse cuando ambos hablan.",
+    audio_meter_desc_2: "Si el paciente habla y la barra NO se mueve, la IA no lo escucha.",
+    audio_meter_solution: "Solución: Desconecta los audífonos o usa altavoces.",
   },
   pt: {
     // --- NOTE STRUCTURE KEYS ---
@@ -490,6 +524,7 @@ export const translations: Record<Language, Record<string, string>> = {
     // [NUEVO] Tooltips para sugerencias manuales
     suggest_questions_tooltip: "Analisar transcrição e sugerir perguntas",
     suggesting_loading: "Pensando...",
+    copilot_active: "Co-piloto Ativo", // NUEVA: Copilot Activo (de imagen)
 
     // --- UPDATED LEGAL/SAFE TERMINOLOGY ---
     start_transcribing_tooltip: "Transcrever",
@@ -564,6 +599,7 @@ export const translations: Record<Language, Record<string, string>> = {
     category_red_flag: "🚩 ALERTA",
     category_examination: "Exame Físico",
     category_diagnostic: "Diagnóstico",
+    category_management: "Terapêutica", // NUEVA: Gestión
     error_fetching_suggestions: "Erro",
     tab_note: "Nota",
     tab_history: "Histórico",
@@ -636,6 +672,21 @@ export const translations: Record<Language, Record<string, string>> = {
     tag_typo: "Erros",
     tag_typo_desc: "Erros escrita.", 
     tag_other: "Outro",
-    tag_other_desc: "Outro problema."
+    tag_other_desc: "Outro problema.",
+
+    // --- PRODUCTIVITY/UTILITY KEYS (New) ---
+    generating_analysis_voice: "Analisando voz, contexto e literatura médica...",
+    tip_productivity_title: "Trabalhe mais rápido com Tela Dividida",
+    tip_productivity_desc_1: "Você sabia que pode ter o CliniScribe e seu Prontuário Clínico abertos ao mesmo tempo?",
+    tip_productivity_desc_2_win: "Como fazer no Chrome / Edge:",
+    tip_productivity_step_1: "Clique com o botão direito na aba do seu Prontuário.",
+    tip_productivity_step_2: "Selecione a opção \"Adicionar aba à nova vista dividida\" (ou similar).",
+    tip_productivity_step_3: "Selecione CliniScribe no outro lado.",
+    tip_productivity_desc_3_final: "Isso permitirá que você copie e cole a nota gerada sem trocar de janela constantemente.",
+    tip_productivity_button: "Entendi!",
+    audio_meter_title: "Monitor de Entrada",
+    audio_meter_desc_1: "Esta barra deve se mover quando ambos falam.",
+    audio_meter_desc_2: "Se o paciente fala e a barra NÃO se move, a IA não está ouvindo.",
+    audio_meter_solution: "Solução: Desconecte os fones de ouvido ou use alto-falantes.",
   }
 };

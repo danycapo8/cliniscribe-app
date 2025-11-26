@@ -34,7 +34,7 @@ const RE_ORPHAN_JSON_ARRAY = /(\n\s*\[\s*\{\s*"type":[\s\S]*\]\s*)$/;
 const spanishStopWords = new Set(['el', 'la', 'los', 'las', 'un', 'una', 'y', 'o', 'pero', 'si', 'no', 'en', 'de', 'con', 'por', 'para']);
 
 const normalizeTextForMatching = (text: string): string => {
-    return text.toLowerCase().normalize("NFD").replace(RE_ACCENTS, "").replace(RE_PUNCTUATION, "").split(RE_WHITESPACE).filter(w => !spanishStopWords.has(w)).join(" ").trim();
+    return text.toLowerCase().normalize("NFD").replace(RE_ACCENTS, "").replace(RE_PUNCTUATION, "").split(RE_WHITESPACE).filter(w => w.length > 0 && !spanishStopWords.has(w)).join(" ").trim();
 };
 
 const checkIfQuestionAsked = (transcript: string, questionText: string): boolean => {
@@ -337,8 +337,8 @@ const App: React.FC = () => {
         if (s.category === 'RED FLAG') categoryLabel = '🚩 ALERTA';
         else if (s.category === 'SCREENING') categoryLabel = t('category_systems_review');
         else if (s.category === 'DIAGNOSTIC') categoryLabel = t('category_current_illness');
-        else if (s.category === 'EXAMINATION') categoryLabel = 'Examen';
-        else if (s.category === 'MANAGEMENT' || (s.category as any) === 'TRATAMIENTO') categoryLabel = 'Terapéutica';
+        else if (s.category === 'EXAMINATION') categoryLabel = t('category_examination');
+        else if (s.category === 'MANAGEMENT' || (s.category as any) === 'TRATAMIENTO') categoryLabel = t('category_management');
 
         return { text: s.question, category: categoryLabel, asked: false };
       });
@@ -421,12 +421,20 @@ const App: React.FC = () => {
     }
   }, [profile.theme]);
 
+  // [CORRECCIÓN DE ROBUSTEZ: Lógica de carga para asegurar que el historial se cargue solo con ID de usuario válido]
+  const loadUserData = async (userId: string, meta: any) => {
+      await recordLogin(userId);
+      await fetchProfile(userId, meta);
+      await fetchHistory(userId); 
+  };
+  
+  // [CORRECCIÓN DE ROBUSTEZ: Ajustar el listener de autenticación para usar la nueva función]
   useEffect(() => {
     const checkConfig = async () => {
         const url = (import.meta as any).env.VITE_SUPABASE_URL;
         if (!url) { setIsSupabaseConfigured(false); setAuthLoading(false); return; }
         const { data, error } = await supabase.auth.getSession();
-        if (error?.message === "Falta configuración de Supabase") {
+        if (error?.message && error.message.includes("Supabase")) {
             setIsSupabaseConfigured(false);
         } else { 
             setSession(data.session); 
@@ -438,7 +446,7 @@ const App: React.FC = () => {
     };
     checkConfig();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => { 
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_, session) => { 
         setSession(session); 
         if (session) { 
             loadUserData(session.user.id, session.user.user_metadata); 
@@ -448,13 +456,7 @@ const App: React.FC = () => {
         }
     });
     return () => subscription.unsubscribe();
-  }, []);
-
-  const loadUserData = async (userId: string, meta: any) => {
-      await fetchProfile(userId, meta);
-      await fetchHistory(userId);
-      await recordLogin(userId);
-  };
+  }, []); 
 
   const recordLogin = async (userId: string) => { try { await supabase.from('profiles').update({ last_login_at: new Date().toISOString() }).eq('id', userId); } catch (e) {} };
   
@@ -477,20 +479,46 @@ const App: React.FC = () => {
       setProfile(prev => ({ ...prev, ...profileUpdate }));
   };
 
-  const fetchHistory = async (userId: string) => {
-      const { data, error } = await supabase.from('historical_notes').select('*').eq('user_id', userId).order('created_at', { ascending: false });
-      if (data && !error) {
-          const loadedHistory: HistoricalNote[] = data.map((item: any) => ({
-              id: item.id,
-              timestamp: new Date(item.created_at).getTime(),
-              note: item.content,
-              context: { age: item.patient_age || "?", sex: item.patient_sex || "?", modality: item.modality || 'in_person', additionalContext: "" },
-              profile: { ...profile },
-              alerts: [] 
-          }));
-          setHistory(loadedHistory);
-      }
-  };
+ const fetchHistory = async (userId: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('historical_notes')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching history:', error);
+      return;
+    }
+
+    if (data && data.length > 0) {
+      const loadedHistory: HistoricalNote[] = data.map((item: any) => ({
+        id: item.id,
+        timestamp: new Date(item.created_at).getTime(),
+        note: item.content,
+        context: {
+          age: item.patient_age ?? '',
+          sex: item.patient_sex ?? '',
+          modality: 'inperson', // Valor por defecto ya que no está en DB
+          additionalContext: ''
+        },
+        profile: { ...profile },
+        alerts: []
+      }));
+      
+      setHistory(loadedHistory);
+      console.log(`✅ Historial cargado: ${loadedHistory.length} notas`);
+    } else {
+      setHistory([]);
+      console.log('📋 No hay notas en el historial');
+    }
+  } catch (e) {
+    console.error('Error al cargar historial:', e);
+    setHistory([]);
+  }
+};
+
   
   const saveProfileToDB = async (newProfile: ExtendedProfile) => { 
       if (session?.user) {
@@ -624,8 +652,36 @@ const App: React.FC = () => {
 
           if (session?.user) {
               const cleanNote = fullText.includes(alertsStartMarker) ? fullText.split(alertsStartMarker)[0].trim() : fullText.replace(RE_ORPHAN_JSON_ARRAY, '').trim();
-              await supabase.from('historical_notes').insert({ user_id: session.user.id, content: cleanNote, patient_age: context.age, patient_sex: context.sex, modality: context.modality });
-              fetchHistory(session.user.id);
+              
+              // [CLINISSCRIBE ARCHITECT FIX: Inserción y actualización directa del estado]
+              const { data: insertedData, error: insertError } = await supabase
+                .from('historical_notes')
+                 .insert({
+                 user_id: session.user.id,
+                 content: cleanNote,
+                 patient_age: context.age,
+                patient_sex: context.sex
+                // modality removido - no existe en la tabla
+                 })
+                .select()
+                 .single();
+
+              
+              if (insertedData && !insertError) {
+                  const newNote: HistoricalNote = {
+                      id: insertedData.id,
+                      // CRÍTICO: Usamos el timestamp de la DB
+                      timestamp: new Date(insertedData.created_at).getTime(), 
+                      note: cleanNote,
+                      context: { age: insertedData.patient_age || context.age, sex: insertedData.patient_sex || context.sex, modality: insertedData.modality || context.modality, additionalContext: "" },
+                      profile: { ...profile },
+                      alerts: alerts.length > 0 ? alerts : [] 
+                  };
+                  // Inyectamos la nota fresca al inicio del historial
+                  setHistory(prev => [newNote, ...prev.filter(n => n.id !== newNote.id)]);
+              } else if (insertError) {
+                  console.error('Error al insertar nota en historial:', insertError);
+              }
           }
       } catch (error: any) { 
           if (error.name !== 'AbortError' && !controller.signal.aborted) { setGeneratedNote(prev => prev + `\n\n❌ ${parseAndHandleGeminiError(error, t('error_generating_note'))}`); }
@@ -661,7 +717,18 @@ const App: React.FC = () => {
 
   const executeConfirmation = async () => {
       if (confirmModal?.type === 'logout') { performLogout(); }
-      else if (confirmModal?.type === 'clear_history') { setHistory([]); setViewingHistoryNoteId(null); setGeneratedNote(''); setAlerts([]); }
+      else if (confirmModal?.type === 'clear_history') { 
+        if (session?.user) {
+            // Borra de la base de datos
+            const { error } = await supabase.from('historical_notes').delete().eq('user_id', session.user.id);
+            if (error) console.error("Error deleting history:", error);
+        }
+        // Limpia el estado local siempre para reflejar el cambio inmediato
+        setHistory([]); 
+        setViewingHistoryNoteId(null); 
+        setGeneratedNote(''); 
+        setAlerts([]); 
+      }
       else if (confirmModal?.type === 'delete_note' && confirmModal.itemId) { 
           setHistory(prev => prev.filter(n => n.id !== confirmModal.itemId)); 
           if (viewingHistoryNoteId === confirmModal.itemId) { setGeneratedNote(''); setAlerts([]); setViewingHistoryNoteId(null); }
@@ -950,7 +1017,7 @@ const App: React.FC = () => {
                     </div>
                     <div className="text-center space-y-2">
                         <p className="text-slate-800 dark:text-white font-bold text-xl animate-pulse">{t('generating_button')}</p>
-                        <p className="text-slate-500">Analizando voz, contexto y literatura médica...</p>
+                        <p className="text-slate-500">{t('generating_analysis_voice')}</p>
                     </div>
                 </div>
             ) : (
@@ -1103,11 +1170,11 @@ const App: React.FC = () => {
 
                                         {/* EL TOOLTIP MEJORADO */}
                                         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-64 p-3 bg-slate-800 text-white text-[10px] leading-relaxed rounded-xl shadow-xl opacity-0 group-hover/meter:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-slate-700">
-                                            <p className="font-bold text-emerald-400 mb-1">Monitor de Entrada</p>
-                                            <p>Esta barra debe moverse cuando <strong>ambos</strong> hablan.</p>
+                                            <p className="font-bold text-emerald-400 mb-1">{t('audio_meter_title')}</p>
+                                            <p>{t('audio_meter_desc_1')}</p>
                                             <ul className="mt-1 list-disc pl-3 space-y-1 text-slate-300">
-                                                <li>Si el paciente habla y la barra <strong>NO se mueve</strong>, la IA no lo escucha.</li>
-                                                <li>Solución: Desconecta los audífonos o usa altavoces.</li>
+                                                <li>{t('audio_meter_desc_2')}</li>
+                                                <li>{t('audio_meter_solution')}</li>
                                             </ul>
                                             {/* Flechita decorativa */}
                                             <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
@@ -1269,26 +1336,26 @@ const App: React.FC = () => {
                     <div className="bg-emerald-100 dark:bg-emerald-500/20 p-2 rounded-lg">
                         <SplitIcon className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
                     </div>
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">Trabaja más rápido con Pantalla Dividida</h3>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">{t('tip_productivity_title')}</h3>
                 </div>
                 
                 <div className="space-y-4 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                    <p>¿Sabías que puedes tener CliniScribe y tu Ficha Clínica abiertos al mismo tiempo?</p>
+                    <p>{t('tip_productivity_desc_1')}</p>
                     
                     <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-700 space-y-2">
-                        <p className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wide">Cómo hacerlo en Chrome / Edge:</p>
+                        <p className="font-bold text-slate-800 dark:text-white text-xs uppercase tracking-wide">{t('tip_productivity_desc_2_win')}</p>
                         <ol className="list-decimal pl-4 space-y-1">
-                            <li>Haz clic derecho sobre la pestaña de tu Ficha Clínica.</li>
-                            <li>Selecciona la opción <strong>"Añadir pestaña a la nueva vista dividida"</strong> (o similar).</li>
-                            <li>Selecciona CliniScribe en el otro lado.</li>
+                            <li>{t('tip_productivity_step_1')}</li>
+                            <li>{t('tip_productivity_step_2')}</li>
+                            <li>{t('tip_productivity_step_3')}</li>
                         </ol>
                     </div>
 
-                    <p className="italic text-xs text-slate-500">Esto te permitirá copiar y pegar la nota generada sin cambiar de ventana constantemente.</p>
+                    <p className="italic text-xs text-slate-500">{t('tip_productivity_desc_3_final')}</p>
                 </div>
 
                 <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
-                    <button onClick={() => setShowSplitTip(false)} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-sm transition shadow-lg shadow-emerald-500/20">¡Entendido!</button>
+                    <button onClick={() => setShowSplitTip(false)} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-sm transition shadow-lg shadow-emerald-500/20">{t('tip_productivity_button')}</button>
                 </div>
             </div>
         </div>
