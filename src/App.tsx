@@ -1,3 +1,4 @@
+// src/App.tsx
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { generateClinicalNoteStream, generateSuggestionsStateless, ConsultationContext, Profile, FilePart, ClinicalAlert, parseAndHandleGeminiError } from './services/geminiService';
 import { QuillIcon, SparklesIcon, TrashIcon, CopyIcon, SpinnerIcon, MicrophoneIcon, StopIcon, UploadIcon, LightbulbIcon, CheckCircleIcon, CheckIcon, XIcon, AlertTriangleIcon, FileDownIcon, NotesIcon, ChevronLeftIcon, MoonIcon, SunIcon, UserIcon, LogOutIcon, VideoIcon, StethoscopeIcon } from './components/icons';
@@ -9,6 +10,13 @@ import Login from './components/Login';
 import tutorialVideo from './assets/tutorial_cliniscribe.mp4';
 // IMPORTANTE: Asegúrate de haber creado este archivo en src/hooks/useAudioLevel.ts
 import { useAudioLevel } from './hooks/useAudioLevel';
+// IMPORTANTE: Asegúrate de haber creado este archivo en src/hooks/useAudioRecorder.ts
+import { useAudioRecorder } from './hooks/useAudioRecorder';
+
+// --- NUEVOS IMPORTS PARA HERRAMIENTAS (CORRECCIÓN) ---
+import { ToolsMenu } from './tools/ToolsMenu'; 
+import { CertificateModal } from './tools/CertificateModal';
+import { CertificateType } from './types/certificates';
 
 declare global {
   interface Window {
@@ -221,6 +229,9 @@ const App: React.FC = () => {
   // NUEVO ESTADO: Interruptor de Auto-Sugerencias
   const [autoSuggestEnabled, setAutoSuggestEnabled] = useState(false);
 
+  // --- NUEVO ESTADO: HERRAMIENTAS (Certificados) ---
+  const [activeTool, setActiveTool] = useState<{type: 'certificate', subType: CertificateType} | null>(null);
+
   const getInitialModality = (): 'in_person' | 'telemedicine' => {
       const storedModality = localStorage.getItem('cliniscribe_modality');
       if (storedModality === 'in_person' || storedModality === 'telemedicine') {
@@ -236,14 +247,20 @@ const App: React.FC = () => {
       additionalContext: '' 
   });
   
-  const [transcript, setTranscript] = useState('');
+  // --- CAMBIOS CLAVE PARA UX DE AUDIO ---
+  const [transcript, setTranscript] = useState(''); // 🎙️ SEGUIRÁ LLENÁNDOSE (Oculto)
+  const [doctorNotes, setDoctorNotes] = useState(''); // ✏️ NUEVO: Notas del médico (Visible)
+  
   const [generatedNote, setGeneratedNote] = useState('');
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [alerts, setAlerts] = useState<ClinicalAlert[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+
+  // --- HOOK AUDIO RECORDER (NUEVO) ---
+  const audioRecorder = useAudioRecorder();
   
-  // --- HOOK AUDIO LEVEL ---
+  // --- HOOK AUDIO LEVEL (Visualización) ---
   const audioLevel = useAudioLevel(isRecording);
 
   const [history, setHistory] = useState<HistoricalNote[]>([]);
@@ -267,8 +284,23 @@ const App: React.FC = () => {
   useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
 
   const canGenerate = useMemo(() => {
-      return context.age && context.sex && transcript.trim().length > 0;
-  }, [context.age, context.sex, transcript]);
+      // Ahora validamos si hay audio grabado O texto escrito O notas
+      return context.age && context.sex && (transcript.trim().length > 0 || doctorNotes.trim().length > 0 || audioRecorder.audioBlob);
+  }, [context.age, context.sex, transcript, doctorNotes, audioRecorder.audioBlob]);
+
+  // --- NUEVO HANDLER PARA HERRAMIENTAS ---
+  const handleToolSelect = (tool: 'certificate', subType?: CertificateType) => {
+    // Verificación de contexto
+    const sourceText = generatedNote || doctorNotes || transcript || (uploadedFiles.length > 0 ? "File Context" : "");
+    
+    if (!sourceText) {
+        alert("Para crear un documento, necesitas tener una nota generada o texto en la transcripción.");
+        return;
+    }
+    if (subType) {
+        setActiveTool({ type: 'certificate', subType });
+    }
+  };
 
   // --- RESIZE TEXTAREA ---
   useEffect(() => {
@@ -282,11 +314,11 @@ const App: React.FC = () => {
           const newHeight = Math.min(el.scrollHeight, 160);
           el.style.height = `${Math.max(newHeight, 40)}px`;
           
-          if (transcript && !isInputFocused) {
+          if (doctorNotes && !isInputFocused) { // Cambiado a doctorNotes
               el.scrollTop = el.scrollHeight;
           }
       }
-  }, [transcript, isLoading, generatedNote, isRecording, isInputFocused]); 
+  }, [doctorNotes, isLoading, generatedNote, isRecording, isInputFocused]); 
 
   useEffect(() => {
       localStorage.setItem('cliniscribe_modality', context.modality);
@@ -313,7 +345,7 @@ const App: React.FC = () => {
   // --- FUNCIÓN FETCH SUGGESTIONS (Lógica Central) ---
   const fetchSuggestions = useCallback(
   async (currentTranscript: string, currentContext: ConsultationContext) => {
-    // CORRECCIÓN CLAVE: Bajamos el umbral a 15 caracteres para igualar al manual
+    // DeepSeek sigue usando el transcript oculto para dar sugerencias
     if (!currentTranscript || currentTranscript.length < 15) return; 
 
     setIsSuggesting(true); 
@@ -359,7 +391,7 @@ const App: React.FC = () => {
     setAutoSuggestEnabled(newState);
     
     // Si se enciende, hacemos una llamada inmediata para no esperar 1 min
-    if (newState && transcript.length > 15) { // Umbral 15 coherente
+    if (newState && transcript.length > 15) { 
         fetchSuggestions(transcript, context);
     }
   };
@@ -371,7 +403,7 @@ const App: React.FC = () => {
     if (autoSuggestEnabled && !generatedNote) {
       intervalId = setInterval(() => {
         const currentText = transcriptRef.current;
-        // CORRECCIÓN CLAVE: Bajamos umbral a 15 para que funcione en pruebas cortas
+        // DeepSeek lee el texto oculto cada minuto
         if (currentText && currentText.length > 15) {
            console.log("⏱️ Ejecutando sugerencia automática (1 min)...");
            fetchSuggestions(currentText, context);
@@ -563,7 +595,7 @@ const App: React.FC = () => {
               finalTranscriptRef.current += (needsSpace ? ' ' : '') + newFinalTranscript;
           }
           const currentDisplay = finalTranscriptRef.current + (interimTranscript ? ' ' + interimTranscript : '');
-          setTranscript(currentDisplay);
+          setTranscript(currentDisplay); // Sigue actualizando el transcript oculto
       };
 
       recognition.onerror = (event: any) => { console.warn("⚠️ Speech Recognition Error:", event.error); };
@@ -581,16 +613,21 @@ const App: React.FC = () => {
       setIsRecording(true);
   }, [profile.language, t, transcript]);
 
+  // --- MODIFIED HANDLER TO USE BOTH RECORDERS ---
   const handleRecordToggle = useCallback(() => {
     if (isRecording) {
         isUserStoppingRef.current = true; 
         recognitionRef.current?.stop();
+        audioRecorder.stopRecording(); // Detiene la grabación real
         setIsRecording(false);
     } else {
         if (!context.age || !context.sex) { alert(t('enter_age_sex_before_recording')); return; }
-        startRecording();
+        
+        audioRecorder.resetRecording(); // Reinicia el blob anterior
+        audioRecorder.startRecording(); // Inicia la grabación real de audio
+        startRecording();               // Inicia el transcriptor visual (browser) para DeepSeek
     }
-  }, [isRecording, context, t, startRecording]);
+  }, [isRecording, context, t, startRecording, audioRecorder]);
 
   const handleFilesChange = (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -609,19 +646,45 @@ const App: React.FC = () => {
       if (abortControllerRef.current) { abortControllerRef.current.abort(); }
       const controller = new AbortController();
       abortControllerRef.current = controller;
-      const textToGenerate = transcript;
-      if (!textToGenerate.trim()) return; 
+      
+      // --- CAMBIO CRÍTICO: PAQUETE COMBINADO ---
+      const textToGenerate = `
+      [NOTAS MANUALES DEL MÉDICO]:
+      ${doctorNotes}
+      
+      [TRANSCRIPCIÓN AUTOMÁTICA DE RESPALDO (Para contexto, ignorar errores fonéticos)]:
+      ${transcript}
+      `.trim();
+
+      // Validar si hay algo que enviar (Audio, Texto o Notas)
+      if (!textToGenerate.trim() && !audioRecorder.audioBlob) return; 
 
       setIsLoading(true); setGeneratedNote(''); setAlerts([]); setViewingHistoryNoteId(null); scrollToTop();
       
-      // Si estaba en modo auto, lo pausamos para no gastar mientras genera
       const wasAuto = autoSuggestEnabled;
       if (wasAuto) setAutoSuggestEnabled(false);
 
       try {
-          const fileParts: FilePart[] = []; for (const uploaded of uploadedFiles) { const base64 = await new Promise<string>((resolve) => { const reader = new FileReader(); reader.onloadend = () => resolve((reader.result as string).split(',')[1]); reader.readAsDataURL(uploaded.file); }); fileParts.push({ mimeType: uploaded.file.type, data: base64 }); }
+          const fileParts: FilePart[] = []; 
+          for (const uploaded of uploadedFiles) { 
+              const base64 = await new Promise<string>((resolve) => { 
+                  const reader = new FileReader(); 
+                  reader.onloadend = () => resolve((reader.result as string).split(',')[1]); 
+                  reader.readAsDataURL(uploaded.file); 
+              }); 
+              fileParts.push({ mimeType: uploaded.file.type, data: base64 }); 
+          }
           
-          const stream = await generateClinicalNoteStream(profile, { ...context, additionalContext: "" }, textToGenerate, fileParts, t);
+          // Enviamos Audio + Texto Combinado
+          const stream = await generateClinicalNoteStream(
+              profile, 
+              { ...context, additionalContext: "" }, 
+              textToGenerate, 
+              fileParts, 
+              t,
+              audioRecorder.audioBase64 || undefined 
+          );
+          
           let fullText = ''; 
           
           for await (const chunk of stream) { 
@@ -653,7 +716,6 @@ const App: React.FC = () => {
           if (session?.user) {
               const cleanNote = fullText.includes(alertsStartMarker) ? fullText.split(alertsStartMarker)[0].trim() : fullText.replace(RE_ORPHAN_JSON_ARRAY, '').trim();
               
-              // [CLINISSCRIBE ARCHITECT FIX: Inserción y actualización directa del estado]
               const { data: insertedData, error: insertError } = await supabase
                 .from('historical_notes')
                  .insert({
@@ -661,7 +723,6 @@ const App: React.FC = () => {
                  content: cleanNote,
                  patient_age: context.age,
                 patient_sex: context.sex
-                // modality removido - no existe en la tabla
                  })
                 .select()
                  .single();
@@ -670,14 +731,12 @@ const App: React.FC = () => {
               if (insertedData && !insertError) {
                   const newNote: HistoricalNote = {
                       id: insertedData.id,
-                      // CRÍTICO: Usamos el timestamp de la DB
                       timestamp: new Date(insertedData.created_at).getTime(), 
                       note: cleanNote,
                       context: { age: insertedData.patient_age || context.age, sex: insertedData.patient_sex || context.sex, modality: insertedData.modality || context.modality, additionalContext: "" },
                       profile: { ...profile },
                       alerts: alerts.length > 0 ? alerts : [] 
                   };
-                  // Inyectamos la nota fresca al inicio del historial
                   setHistory(prev => [newNote, ...prev.filter(n => n.id !== newNote.id)]);
               } else if (insertError) {
                   console.error('Error al insertar nota en historial:', insertError);
@@ -719,11 +778,9 @@ const App: React.FC = () => {
       if (confirmModal?.type === 'logout') { performLogout(); }
       else if (confirmModal?.type === 'clear_history') { 
         if (session?.user) {
-            // Borra de la base de datos
             const { error } = await supabase.from('historical_notes').delete().eq('user_id', session.user.id);
             if (error) console.error("Error deleting history:", error);
         }
-        // Limpia el estado local siempre para reflejar el cambio inmediato
         setHistory([]); 
         setViewingHistoryNoteId(null); 
         setGeneratedNote(''); 
@@ -756,14 +813,17 @@ const App: React.FC = () => {
   
   const loadHistoryNote = (note: HistoricalNote) => { 
       setContext(note.context); setGeneratedNote(note.note); setAlerts(note.alerts); setViewingHistoryNoteId(note.id); 
-      setTranscript(''); setSuggestedQuestions([]); scrollToTop();
+      setTranscript(''); setDoctorNotes(''); setSuggestedQuestions([]); scrollToTop();
   };
 
   const handleNewNote = () => {
       setViewingHistoryNoteId(null); setGeneratedNote(''); setAlerts([]); 
       setContext(prev => ({ age: '', sex: '', modality: prev.modality, additionalContext: '' }));
-      setTranscript(''); setSuggestedQuestions([]); setUploadedFiles([]); scrollToTop();
-      setAutoSuggestEnabled(false); // Reset sugerencias auto al limpiar
+      setTranscript(''); // Limpia la transcripción oculta
+      setDoctorNotes(''); // Limpia las notas visibles
+      setSuggestedQuestions([]); setUploadedFiles([]); scrollToTop();
+      setAutoSuggestEnabled(false); // Reset sugerencias auto
+      audioRecorder.resetRecording(); // Limpiar audio en memoria
   };
 
   const exportToPDF = () => { 
@@ -973,6 +1033,10 @@ const App: React.FC = () => {
 
              {generatedNote && (
                 <div className="flex items-center gap-2 animate-in fade-in">
+                    
+                    {/* --- NUEVO: Menú de Herramientas Header (VISIBLE SOLO SI HAY NOTA) --- */}
+                    <ToolsMenu onSelectTool={handleToolSelect} variant="header" />
+
                     <div className="relative group">
                         <button onClick={() => navigator.clipboard.writeText(generatedNote.replace(/\*\*/g, ''))} className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition"><CopyIcon className="h-3 w-3"/> {t('copy_button_title')}</button>
                         <div className="absolute top-full right-0 mt-2 w-max px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
@@ -1136,12 +1200,12 @@ const App: React.FC = () => {
                         <div className="px-4 py-2 relative flex-grow flex flex-col min-h-0 z-10">
                             <textarea 
                                 ref={textareaRef} 
-                                value={transcript} 
-                                onChange={(e) => setTranscript(e.target.value)} 
+                                value={doctorNotes} // SEGUIMOS TUS NOTAS MANUALES
+                                onChange={(e) => setDoctorNotes(e.target.value)} 
                                 onKeyDown={handleKeyDown} 
                                 onFocus={() => setIsInputFocused(true)} 
                                 onBlur={() => setIsInputFocused(false)}
-                                placeholder={t('transcript_placeholder')} 
+                                placeholder={t('transcript_placeholder')} // Cambiar en translation si gustas, pero este sirve
                                 rows={1} 
                                 className="w-full bg-transparent text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-600 text-sm resize-none outline-none custom-scrollbar overflow-y-auto leading-relaxed font-mono min-h-[40px] max-h-[160px]" 
                                 spellCheck={false} 
@@ -1158,6 +1222,15 @@ const App: React.FC = () => {
                                 ))}
                             </div>
                             <div className="flex items-center gap-2">
+                                
+                                {/* --- NUEVO: Menú Herramientas en Barra Input (Compacto) --- */}
+                                {/* Solo se muestra si NO hay nota generada aún y hay espacio */}
+                                {!generatedNote && (
+                                    <div className="relative group z-[60]">
+                                        <ToolsMenu onSelectTool={handleToolSelect} variant="input" />
+                                    </div>
+                                )}
+
                                 {/* --- COMPONENTE VISUALIZADOR DE AUDIO --- */}
                                 {isRecording && (
                                     <div className="relative group/meter flex items-end mx-2">
@@ -1258,6 +1331,7 @@ const App: React.FC = () => {
         )}
       </main>
 
+      {/* --- CÓDIGO DEL MODAL DE PERFIL Y TUTORIAL EXISTENTE... --- */}
       {showProfile && (
          <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowProfile(false)}>
             <div className="bg-white dark:bg-[#0f172a] w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 relative" onClick={e => e.stopPropagation()}>
@@ -1372,6 +1446,18 @@ const App: React.FC = () => {
                      </div>
                  </div>
              </div>
+      )}
+
+      {/* --- NUEVO: MODAL DE CERTIFICADOS (PASO 5) --- */}
+      {activeTool && activeTool.type === 'certificate' && (
+        <CertificateModal 
+            isOpen={true}
+            onClose={() => setActiveTool(null)}
+            type={activeTool.subType}
+            sourceText={generatedNote || transcript} 
+            context={context}
+            profile={profile}
+        />
       )}
     </div>
   );

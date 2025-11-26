@@ -112,7 +112,8 @@ export async function* generateClinicalNoteStream(
   context: ConsultationContext,
   transcript: string,
   fileParts: FilePart[],
-  t: (key: string) => string
+  t: (key: string) => string,
+  audioBase64?: string // <--- 🆕 MODIFICACIÓN: Nuevo parámetro opcional para audio
 ) {
   // 1. Ya NO buscamos la API KEY aquí (seguridad).
   
@@ -131,6 +132,16 @@ export async function* generateClinicalNoteStream(
     { text: roleInstruction },
     { text: queryInstruction }
   ];
+
+  // 🆕 MODIFICACIÓN: Inyectar Audio Nativo (Multimodal) si existe
+  if (audioBase64) {
+    userParts.push({
+      inlineData: {
+        mimeType: "audio/webm", // Estándar para MediaRecorder de navegadores
+        data: audioBase64       // Base64 limpio
+      }
+    });
+  }
 
   // Agregar archivos si existen
   if (hasFiles) {

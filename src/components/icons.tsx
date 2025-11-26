@@ -24,7 +24,10 @@ import {
   ThumbsUp as ThumbsUpIcon,
   ThumbsDown as ThumbsDownIcon,
   Video as VideoIcon,
-  Stethoscope as StethoscopeIcon
+  Stethoscope as StethoscopeIcon,
+  // --- NUEVOS ICONOS AGREGADOS ---
+  Wrench as WrenchIcon,
+  FileText as FileTextIcon
 } from 'lucide-react';
 
 export { 
@@ -46,12 +49,15 @@ export {
   EyeIcon, 
   UserIcon, 
   NotesIcon, 
-  ChevronLeftIcon,
+  ChevronLeftIcon, 
   MoonIcon, 
   SunIcon, 
   LogOutIcon, 
   ThumbsUpIcon, 
-  ThumbsDownIcon,
-  VideoIcon,
-  StethoscopeIcon
+  ThumbsDownIcon, 
+  VideoIcon, 
+  StethoscopeIcon,
+  // --- NUEVOS EXPORTS AGREGADOS ---
+  WrenchIcon,
+  FileTextIcon
 };

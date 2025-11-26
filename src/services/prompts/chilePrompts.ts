@@ -195,9 +195,10 @@ ${`{{SI NO SE SOLICITAN: OMITIR ESTA SECCIÓN.}}`}
 - **Derivación/Interconsulta:** ${`{{SI HAY DERIVACIÓN: "Se emite interconsulta a [Especialidad Médica] por [Motivo]". NO derivar patología médica a nutricionista.}}`}
 - **Seguimiento/Control:** ${`{{SI DERIVAS: "Control con [Especialista] con resultados". SI NO DERIVAS: Elegir entre "Control médico a la brevedad con resultados" (si faltan exám.) o "Control médico en [X] días" (evolución).}}`}
 
-## 🧠 Discusión de Seguridad (Interno)
-- **Interacciones:** [Análisis de riesgo farmacológico o "No detectadas"].
-- **Notificación:** [Si aplica ENO o "No aplica"].
+## 🧠 Discusión Clínica y Resguardo (Uso Interno)
+- **Razonamiento:** [Sintetiza el cuadro clínico, antecedentes y por qué se llegó al diagnóstico principal, mencionando diferenciales descartados].
+- **Alternativas Terapéuticas:** [Menciona qué opciones se consideraron (ej: esperar laboratorio vs iniciar tratamiento) y por qué se eligió el plan actual].
+- **Seguridad Clínica:** [Destaca descarte de patología grave, análisis de interacciones farmacológicas y pertinencia de notificación ENO si aplica].
 
 ***
 
