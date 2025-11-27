@@ -13,7 +13,7 @@ import { useAudioLevel } from './hooks/useAudioLevel';
 // IMPORTANTE: Asegúrate de haber creado este archivo en src/hooks/useAudioRecorder.ts
 import { useAudioRecorder } from './hooks/useAudioRecorder';
 
-// --- NUEVOS IMPORTS PARA HERRAMIENTAS (CORRECCIÓN) ---
+// --- NUEVOS IMPORTS PARA HERRAMIENTAS ---
 import { ToolsMenu } from './tools/ToolsMenu'; 
 import { CertificateModal } from './tools/CertificateModal';
 import { CertificateType } from './types/certificates';
@@ -70,7 +70,7 @@ const renderBoldText = (text: string) => {
     });
 };
 
-// --- Icono Local para Split View (para no modificar archivo de iconos) ---
+// --- Icono Local para Split View ---
 const SplitIcon = ({ className }: { className?: string }) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
         <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
@@ -91,7 +91,6 @@ interface HistoricalNote { id: string; timestamp: number; context: ConsultationC
 interface UploadedFile { id: string; file; previewUrl?: string; }
 
 // --- Helper Components ---
-
 const CopyButton: React.FC<{ text: string; className?: string; title?: string }> = ({ text, className = "", title = "Copy" }) => {
     const [copied, setCopied] = useState(false);
     const handleCopy = (e: React.MouseEvent) => {
@@ -110,7 +109,7 @@ const CopyButton: React.FC<{ text: string; className?: string; title?: string }>
     );
 };
 
-// --- ClinicalNoteOutput (SAFE FIX VERSION) ---
+// --- ClinicalNoteOutput ---
 const ClinicalNoteOutput: React.FC<{ note: string, t: any }> = ({ note, t }) => {
     const sections = useMemo(() => {
         if (!note) return { disclaimer: '', sections: [] };
@@ -224,12 +223,15 @@ const App: React.FC = () => {
   // --- UI STATES ---
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [showSplitTip, setShowSplitTip] = useState(false);
-  const [isSuggesting, setIsSuggesting] = useState(false); 
-  
-  // NUEVO ESTADO: Interruptor de Auto-Sugerencias
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const [isMobile, setIsMobile] = useState(false); 
+  const [showAudioHelp, setShowAudioHelp] = useState(false); 
+  const [showAudioRecordedMessage, setShowAudioRecordedMessage] = useState(false); 
+  const [showMissingDataModal, setShowMissingDataModal] = useState(false);
+
   const [autoSuggestEnabled, setAutoSuggestEnabled] = useState(false);
 
-  // --- NUEVO ESTADO: HERRAMIENTAS (Certificados) ---
+  // --- HERRAMIENTAS (Certificados) ---
   const [activeTool, setActiveTool] = useState<{type: 'certificate', subType: CertificateType} | null>(null);
 
   const getInitialModality = (): 'in_person' | 'telemedicine' => {
@@ -247,9 +249,8 @@ const App: React.FC = () => {
       additionalContext: '' 
   });
   
-  // --- CAMBIOS CLAVE PARA UX DE AUDIO ---
-  const [transcript, setTranscript] = useState(''); // 🎙️ SEGUIRÁ LLENÁNDOSE (Oculto)
-  const [doctorNotes, setDoctorNotes] = useState(''); // ✏️ NUEVO: Notas del médico (Visible)
+  const [transcript, setTranscript] = useState(''); 
+  const [doctorNotes, setDoctorNotes] = useState(''); 
   
   const [generatedNote, setGeneratedNote] = useState('');
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
@@ -257,10 +258,7 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
 
-  // --- HOOK AUDIO RECORDER (NUEVO) ---
   const audioRecorder = useAudioRecorder();
-  
-  // --- HOOK AUDIO LEVEL (Visualización) ---
   const audioLevel = useAudioLevel(isRecording);
 
   const [history, setHistory] = useState<HistoricalNote[]>([]);
@@ -279,42 +277,33 @@ const App: React.FC = () => {
   const finalTranscriptRef = useRef('');
   const isUserStoppingRef = useRef(false); 
 
-  // REF PARA EL INTERVALO: Evita cierres obsoletos
   const transcriptRef = useRef(transcript);
   useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
 
-  const canGenerate = useMemo(() => {
-      // Ahora validamos si hay audio grabado O texto escrito O notas
-      return context.age && context.sex && (transcript.trim().length > 0 || doctorNotes.trim().length > 0 || audioRecorder.audioBlob);
-  }, [context.age, context.sex, transcript, doctorNotes, audioRecorder.audioBlob]);
+  const audioHelpTimeoutRef = useRef<number | null>(null); 
+  const audioRecordedTimeoutRef = useRef<number | null>(null); 
 
-  // --- NUEVO HANDLER PARA HERRAMIENTAS ---
+  const canGenerate = useMemo(() => {
+      const hasContent = transcript.trim().length > 0 || doctorNotes.trim().length > 0 || audioRecorder.audioBlob || uploadedFiles.length > 0;
+      return hasContent;
+  }, [transcript, doctorNotes, audioRecorder.audioBlob, uploadedFiles.length]);
+
   const handleToolSelect = (tool: 'certificate', subType?: CertificateType) => {
-    // Verificación de contexto
-    const sourceText = generatedNote || doctorNotes || transcript || (uploadedFiles.length > 0 ? "File Context" : "");
-    
-    if (!sourceText) {
-        alert("Para crear un documento, necesitas tener una nota generada o texto en la transcripción.");
-        return;
-    }
     if (subType) {
         setActiveTool({ type: 'certificate', subType });
     }
   };
 
-  // --- RESIZE TEXTAREA ---
   useEffect(() => {
       const el = textareaRef.current;
       if (!el) return;
       el.style.height = 'auto'; 
-      
       if (isLoading || (generatedNote && !isRecording && !isInputFocused)) {
           el.style.height = '40px'; 
       } else {
           const newHeight = Math.min(el.scrollHeight, 160);
           el.style.height = `${Math.max(newHeight, 40)}px`;
-          
-          if (doctorNotes && !isInputFocused) { // Cambiado a doctorNotes
+          if (doctorNotes && !isInputFocused) {
               el.scrollTop = el.scrollHeight;
           }
       }
@@ -326,13 +315,18 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth >= 768) {
-        setIsSidebarOpen(true);
+      if (typeof window !== 'undefined') {
+        if (window.innerWidth >= 768) {
+          setIsSidebarOpen(true);
+        }
+        setIsMobile(window.innerWidth < 768); 
       }
     };
-    handleResize(); 
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    if (typeof window !== 'undefined') {
+      handleResize();
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }
   }, []);
 
   const t = useCallback((key: string, options?: { [key: string]: string | number }) => {
@@ -342,12 +336,9 @@ const App: React.FC = () => {
       return text;
   }, [profile.language]);
 
-  // --- FUNCIÓN FETCH SUGGESTIONS (Lógica Central) ---
   const fetchSuggestions = useCallback(
   async (currentTranscript: string, currentContext: ConsultationContext) => {
-    // DeepSeek sigue usando el transcript oculto para dar sugerencias
     if (!currentTranscript || currentTranscript.length < 15) return; 
-
     setIsSuggesting(true); 
     setSuggestionsError(null);
     try {
@@ -358,12 +349,10 @@ const App: React.FC = () => {
          modality: currentContext.modality || 'telemedicine',
       };
       const suggestionsArray = await generateSuggestionsStateless(profile, safeContext, currentTranscript, t);
-      
       if (!suggestionsArray || suggestionsArray.length === 0) {
         setIsSuggesting(false);
         return;
       }
-
       const newQuestions: SuggestedQuestion[] = suggestionsArray.map((s) => {
         let categoryLabel = t('category_history');
         if (s.category === 'RED FLAG') categoryLabel = '🚩 ALERTA';
@@ -374,43 +363,32 @@ const App: React.FC = () => {
 
         return { text: s.question, category: categoryLabel, asked: false };
       });
-
       setSuggestedQuestions(newQuestions);
-      
     } catch (error) {
       console.error('Error fetching suggestions', error);
-      // Silencioso en automático
     } finally {
       setIsSuggesting(false); 
     }
   }, [profile, t] );
 
-  // --- NUEVO: TOGGLE PARA EL MODO AUTOMÁTICO ---
   const toggleAutoSuggestions = () => {
     const newState = !autoSuggestEnabled;
     setAutoSuggestEnabled(newState);
-    
-    // Si se enciende, hacemos una llamada inmediata para no esperar 1 min
     if (newState && transcript.length > 15) { 
         fetchSuggestions(transcript, context);
     }
   };
 
-  // --- EFECTO DEL INTERVALO DE 1 MINUTO ---
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
-
     if (autoSuggestEnabled && !generatedNote) {
       intervalId = setInterval(() => {
         const currentText = transcriptRef.current;
-        // DeepSeek lee el texto oculto cada minuto
         if (currentText && currentText.length > 15) {
-           console.log("⏱️ Ejecutando sugerencia automática (1 min)...");
            fetchSuggestions(currentText, context);
         }
-      }, 60000); // 60,000 ms = 1 minuto
+      }, 60000); 
     }
-
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
@@ -453,14 +431,12 @@ const App: React.FC = () => {
     }
   }, [profile.theme]);
 
-  // [CORRECCIÓN DE ROBUSTEZ: Lógica de carga para asegurar que el historial se cargue solo con ID de usuario válido]
   const loadUserData = async (userId: string, meta: any) => {
       await recordLogin(userId);
       await fetchProfile(userId, meta);
       await fetchHistory(userId); 
   };
   
-  // [CORRECCIÓN DE ROBUSTEZ: Ajustar el listener de autenticación para usar la nueva función]
   useEffect(() => {
     const checkConfig = async () => {
         const url = (import.meta as any).env.VITE_SUPABASE_URL;
@@ -523,7 +499,6 @@ const App: React.FC = () => {
       console.error('Error fetching history:', error);
       return;
     }
-
     if (data && data.length > 0) {
       const loadedHistory: HistoricalNote[] = data.map((item: any) => ({
         id: item.id,
@@ -532,25 +507,20 @@ const App: React.FC = () => {
         context: {
           age: item.patient_age ?? '',
           sex: item.patient_sex ?? '',
-          modality: 'inperson', // Valor por defecto ya que no está en DB
+          modality: 'inperson', 
           additionalContext: ''
         },
         profile: { ...profile },
         alerts: []
       }));
-      
       setHistory(loadedHistory);
-      console.log(`✅ Historial cargado: ${loadedHistory.length} notas`);
     } else {
       setHistory([]);
-      console.log('📋 No hay notas en el historial');
     }
   } catch (e) {
-    console.error('Error al cargar historial:', e);
     setHistory([]);
   }
 };
-
   
   const saveProfileToDB = async (newProfile: ExtendedProfile) => { 
       if (session?.user) {
@@ -595,7 +565,7 @@ const App: React.FC = () => {
               finalTranscriptRef.current += (needsSpace ? ' ' : '') + newFinalTranscript;
           }
           const currentDisplay = finalTranscriptRef.current + (interimTranscript ? ' ' + interimTranscript : '');
-          setTranscript(currentDisplay); // Sigue actualizando el transcript oculto
+          setTranscript(currentDisplay); 
       };
 
       recognition.onerror = (event: any) => { console.warn("⚠️ Speech Recognition Error:", event.error); };
@@ -613,21 +583,62 @@ const App: React.FC = () => {
       setIsRecording(true);
   }, [profile.language, t, transcript]);
 
-  // --- MODIFIED HANDLER TO USE BOTH RECORDERS ---
-  const handleRecordToggle = useCallback(() => {
+  const handleRecordToggle = useCallback(async () => {
     if (isRecording) {
-        isUserStoppingRef.current = true; 
-        recognitionRef.current?.stop();
-        audioRecorder.stopRecording(); // Detiene la grabación real
-        setIsRecording(false);
+      isUserStoppingRef.current = true; 
+      recognitionRef.current?.stop();
+      try {
+        await audioRecorder.stopRecording();
+      } catch (error) {
+        console.error('Error deteniendo la grabación:', error);
+      }
+      
+      if (audioHelpTimeoutRef.current) {
+        clearTimeout(audioHelpTimeoutRef.current);
+        audioHelpTimeoutRef.current = null;
+      }
+      setShowAudioHelp(false);
+      
+      if (isMobile) {
+        setShowAudioRecordedMessage(true);
+        if (audioRecordedTimeoutRef.current) {
+          clearTimeout(audioRecordedTimeoutRef.current);
+        }
+        audioRecordedTimeoutRef.current = window.setTimeout(() => {
+          setShowAudioRecordedMessage(false);
+          audioRecordedTimeoutRef.current = null;
+        }, 4000) as unknown as number; 
+      }
+      setIsRecording(false); 
     } else {
-        if (!context.age || !context.sex) { alert(t('enter_age_sex_before_recording')); return; }
+      try {
+        audioRecorder.resetRecording();
+        await audioRecorder.startRecording();
+        startRecording();               
         
-        audioRecorder.resetRecording(); // Reinicia el blob anterior
-        audioRecorder.startRecording(); // Inicia la grabación real de audio
-        startRecording();               // Inicia el transcriptor visual (browser) para DeepSeek
+        if (isMobile) {
+          setShowAudioHelp(true);
+          if (audioHelpTimeoutRef.current) {
+            clearTimeout(audioHelpTimeoutRef.current);
+          }
+          audioHelpTimeoutRef.current = window.setTimeout(() => {
+            setShowAudioHelp(false);
+            audioHelpTimeoutRef.current = null;
+          }, 5000) as unknown as number; 
+        }
+
+        if (audioRecordedTimeoutRef.current) {
+          clearTimeout(audioRecordedTimeoutRef.current);
+          audioRecordedTimeoutRef.current = null;
+        }
+        setShowAudioRecordedMessage(false);
+      } catch (error) {
+        console.error('Error al iniciar grabación:', error);
+        setIsRecording(false);
+        setShowAudioHelp(false);
+      }
     }
-  }, [isRecording, context, t, startRecording, audioRecorder]);
+  }, [isRecording, t, startRecording, audioRecorder, isMobile]); 
 
   const handleFilesChange = (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -643,11 +654,30 @@ const App: React.FC = () => {
   const handleRemoveFile = (id: string) => setUploadedFiles(prev => prev.filter(f => f.id !== id));
 
   const handleGenerateNote = async () => {
+      // VALIDACIÓN NUEVA: Modal personalizado si faltan datos
+      if (!context.age || !context.sex) {
+        setShowMissingDataModal(true);
+        return;
+      }
+
+      // AUTO STOP: Si está grabando, detener y usar el audio capturado
+      if (isRecording) {
+        isUserStoppingRef.current = true;
+        if (recognitionRef.current) recognitionRef.current.stop();
+        
+        try {
+            await audioRecorder.stopRecording();
+            setIsRecording(false);
+            await new Promise(r => setTimeout(r, 500));
+        } catch (e) {
+            console.error("Error auto-stopping recording", e);
+        }
+      }
+
       if (abortControllerRef.current) { abortControllerRef.current.abort(); }
       const controller = new AbortController();
       abortControllerRef.current = controller;
       
-      // --- CAMBIO CRÍTICO: PAQUETE COMBINADO ---
       const textToGenerate = `
       [NOTAS MANUALES DEL MÉDICO]:
       ${doctorNotes}
@@ -656,7 +686,6 @@ const App: React.FC = () => {
       ${transcript}
       `.trim();
 
-      // Validar si hay algo que enviar (Audio, Texto o Notas)
       if (!textToGenerate.trim() && !audioRecorder.audioBlob) return; 
 
       setIsLoading(true); setGeneratedNote(''); setAlerts([]); setViewingHistoryNoteId(null); scrollToTop();
@@ -675,7 +704,6 @@ const App: React.FC = () => {
               fileParts.push({ mimeType: uploaded.file.type, data: base64 }); 
           }
           
-          // Enviamos Audio + Texto Combinado
           const stream = await generateClinicalNoteStream(
               profile, 
               { ...context, additionalContext: "" }, 
@@ -738,8 +766,6 @@ const App: React.FC = () => {
                       alerts: alerts.length > 0 ? alerts : [] 
                   };
                   setHistory(prev => [newNote, ...prev.filter(n => n.id !== newNote.id)]);
-              } else if (insertError) {
-                  console.error('Error al insertar nota en historial:', insertError);
               }
           }
       } catch (error: any) { 
@@ -795,7 +821,7 @@ const App: React.FC = () => {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (canGenerate && !isLoading) { handleGenerateNote(); } }
+    return;
   };
 
   const getModalTitle = () => {
@@ -809,7 +835,6 @@ const App: React.FC = () => {
 
   const getModalMessage = () => t(confirmModal?.type === 'logout' ? 'logout_confirm' : confirmModal?.type === 'clear_history' ? 'clear_history_confirm' : 'delete_note_confirm');
   const handleMarkQuestion = (text: string) => setSuggestedQuestions(prev => prev.map(q => q.text === text ? { ...q, asked: true } : q));
-  const handleDismissQuestion = (text: string) => setSuggestedQuestions(prev => prev.filter(q => q.text !== text));
   
   const loadHistoryNote = (note: HistoricalNote) => { 
       setContext(note.context); setGeneratedNote(note.note); setAlerts(note.alerts); setViewingHistoryNoteId(note.id); 
@@ -818,12 +843,12 @@ const App: React.FC = () => {
 
   const handleNewNote = () => {
       setViewingHistoryNoteId(null); setGeneratedNote(''); setAlerts([]); 
-      setContext(prev => ({ age: '', sex: '', modality: prev.modality, additionalContext: '' }));
-      setTranscript(''); // Limpia la transcripción oculta
-      setDoctorNotes(''); // Limpia las notas visibles
+      setContext(prev => ({ age: '', sex: '', modality: prev.modality, additionalContext: "" }));
+      setTranscript(''); 
+      setDoctorNotes(''); 
       setSuggestedQuestions([]); setUploadedFiles([]); scrollToTop();
-      setAutoSuggestEnabled(false); // Reset sugerencias auto
-      audioRecorder.resetRecording(); // Limpiar audio en memoria
+      setAutoSuggestEnabled(false); 
+      audioRecorder.resetRecording(); 
   };
 
   const exportToPDF = () => { 
@@ -873,6 +898,7 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen supports-[height:100dvh]:h-[100dvh] bg-slate-50 dark:bg-[#0f1115] text-slate-800 dark:text-slate-200 font-sans overflow-hidden transition-colors duration-300">
         <aside className={`flex-shrink-0 overflow-hidden bg-white dark:bg-[#02040a] border-r border-slate-200 dark:border-white/5 flex flex-col transition-all duration-300 fixed md:relative z-[100] h-full ${isSidebarOpen ? 'w-72 translate-x-0 shadow-2xl md:shadow-none' : '-translate-x-full md:w-0 md:translate-x-0'}`}>
+         {/* ... Contenido del Sidebar sin cambios ... */}
          <div className="p-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
                  <div className="bg-gradient-to-br from-sky-500 to-indigo-600 p-1.5 rounded-lg">
@@ -981,18 +1007,12 @@ const App: React.FC = () => {
                         </div>
                     </div>
                 </button>
-                <div className="absolute bottom-full left-0 mb-2 w-max px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
-                    {t('tooltip_profile')}
-                </div>
             </div>
             
             <div className="shrink-0 relative group">
                 <button onClick={handleLogoutClick} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-slate-200 dark:hover:bg-white/5 rounded-lg transition-colors">
                     <LogOutIcon className="h-5 w-5" />
                 </button>
-                <div className="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
-                    {t('logout_button')}
-                </div>
             </div>
          </div>
       </aside>
@@ -1006,59 +1026,58 @@ const App: React.FC = () => {
             </button>
         )}
 
-        <header className="h-14 shrink-0 flex items-center justify-end px-6 border-b border-slate-100 dark:border-white/5 bg-white/80 dark:bg-[#0f1115]/90 backdrop-blur z-10 gap-2">
-             {!generatedNote && !viewingHistoryNoteId && (
-                 <div className="flex items-center gap-2">
-                     <div className="relative group">
-                        <button 
-                            onClick={() => setShowSplitTip(true)} 
-                            className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition animate-in fade-in"
-                        >
-                            <SplitIcon className="h-3.5 w-3.5" /> 
-                            <span className="hidden sm:inline">Tip Productividad</span>
-                        </button>
-                     </div>
+        <header className="h-14 shrink-0 flex items-center justify-between px-6 border-b border-slate-100 dark:border-white/5 bg-white/80 dark:bg-[#0f1115]/90 backdrop-blur z-10 gap-2">
+             
+             {/* HEADER IZQUIERDA: Hub de Herramientas (SIEMPRE VISIBLE) */}
+             <div className="flex items-center gap-2">
+                 <ToolsMenu onSelectTool={handleToolSelect} variant="header" />
+             </div>
 
-                     <div className="relative group">
-                        <button 
-                            onClick={() => setShowTutorial(true)} 
-                            className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition animate-in fade-in"
-                        >
-                            <VideoIcon className="h-3.5 w-3.5" /> 
-                            {t('tutorial_button') || 'Tutorial'}
-                        </button>
-                     </div>
-                 </div>
-             )}
-
-             {generatedNote && (
-                <div className="flex items-center gap-2 animate-in fade-in">
-                    
-                    {/* --- NUEVO: Menú de Herramientas Header (VISIBLE SOLO SI HAY NOTA) --- */}
-                    <ToolsMenu onSelectTool={handleToolSelect} variant="header" />
-
-                    <div className="relative group">
-                        <button onClick={() => navigator.clipboard.writeText(generatedNote.replace(/\*\*/g, ''))} className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition"><CopyIcon className="h-3 w-3"/> {t('copy_button_title')}</button>
-                        <div className="absolute top-full right-0 mt-2 w-max px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
-                           {t('tooltip_copy_note_text')}
+             {/* HEADER DERECHA: Contextual (Tips/Tutorial O Exportar) */}
+             <div className="flex items-center gap-2 animate-in fade-in">
+                
+                {/* MODO 1: NUEVA NOTA (Sin nota generada y sin ver historial) - Mostrar Tips/Tutorial */}
+                {!generatedNote && !viewingHistoryNoteId && (
+                    <>
+                        <div className="relative group">
+                            <button 
+                                onClick={() => setShowSplitTip(true)} 
+                                className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition animate-in fade-in"
+                            >
+                                <SplitIcon className="h-3.5 w-3.5" /> 
+                                <span className="hidden sm:inline">Tip Productividad</span>
+                            </button>
                         </div>
-                    </div>
-                    
-                    <div className="relative group">
-                        <button onClick={handleExportWord} className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition"><FileDownIcon className="h-3 w-3"/> {t('button_word')}</button>
-                        <div className="absolute top-full right-0 mt-2 w-max px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
-                           {t('tooltip_export_word')}
-                        </div>
-                    </div>
 
-                    <div className="relative group">
-                        <button onClick={exportToPDF} className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition"><FileDownIcon className="h-3 w-3"/> {t('button_pdf')}</button>
-                         <div className="absolute top-full right-0 mt-2 w-max px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
-                           {t('tooltip_export_pdf')}
+                        <div className="relative group">
+                            <button 
+                                onClick={() => setShowTutorial(true)} 
+                                className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition animate-in fade-in"
+                            >
+                                <VideoIcon className="h-3.5 w-3.5" /> 
+                                {t('tutorial_button') || 'Tutorial'}
+                            </button>
                         </div>
-                    </div>
-                </div>
-             )}
+                    </>
+                )}
+
+                {/* MODO 2: NOTA GENERADA - Mostrar Exportar */}
+                {generatedNote && (
+                    <>
+                        <div className="relative group">
+                            <button onClick={() => navigator.clipboard.writeText(generatedNote.replace(/\*\*/g, ''))} className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition"><CopyIcon className="h-3 w-3"/> <span className="hidden sm:inline">{t('copy_button_title')}</span></button>
+                        </div>
+                        
+                        <div className="relative group">
+                            <button onClick={handleExportWord} className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition"><FileDownIcon className="h-3 w-3"/> <span className="hidden sm:inline">{t('button_word')}</span></button>
+                        </div>
+
+                        <div className="relative group">
+                            <button onClick={exportToPDF} className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition"><FileDownIcon className="h-3 w-3"/> <span className="hidden sm:inline">{t('button_pdf')}</span></button>
+                        </div>
+                    </>
+                )}
+            </div>
         </header>
 
         <div ref={scrollRef} className={`flex-grow overflow-y-auto custom-scrollbar px-4 pt-8 scroll-smooth w-full ${viewingHistoryNoteId ? 'pb-8' : 'pb-40'}`}>
@@ -1143,9 +1162,9 @@ const App: React.FC = () => {
                         </div>
                     )}
 
-                    <div className={`bg-white dark:bg-[#1e1f20] border border-slate-200 dark:border-white/10 shadow-2xl shadow-slate-200/50 dark:shadow-black/50 transition-all duration-300 flex flex-col rounded-3xl ${isRecording ? 'ring-2 ring-rose-500/50' : 'focus-within:ring-2 focus-within:ring-sky-500/50'}`}>
+                    <div className={`bg-white dark:bg-[#1e1f20] border border-slate-200 dark:border-white/10 shadow-2xl shadow-slate-200/50 dark:shadow-black/50 transition-all duration-300 flex flex-col rounded-3xl ${isRecording ? 'ring-2 ring-emerald-500/50' : 'focus-within:ring-2 focus-within:ring-sky-500/50'}`}>
                         
-                        <div className="flex items-center gap-2 px-4 pt-3 pb-1 shrink-0 relative z-20">
+                        <div className="flex items-center gap-2 px-2 sm:px-4 pt-3 pb-1 shrink-0 relative z-20">
                             <div className="relative group">
                                 <input type="number" value={context.age} onChange={(e) => setContext({...context, age: e.target.value})} 
                                     placeholder={t('patient_age')}
@@ -1183,29 +1202,22 @@ const App: React.FC = () => {
                                     {t('modality_label')}
                                 </div>
                             </div>
-
-                            <div className="relative group z-[60]">
-                                <button onClick={() => fileInputRef.current?.click()} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border transition-all ${uploadedFiles.length > 0 ? 'bg-sky-100 dark:bg-sky-500/20 text-sky-600 dark:text-sky-300 border-sky-200 dark:border-sky-500/30' : 'bg-slate-100 dark:bg-black/30 text-slate-500 dark:text-slate-400 border-transparent hover:bg-slate-200 dark:hover:bg-black/50'}`}>
-                                    <UploadIcon className="h-3 w-3" />
-                                    <span className="hidden sm:inline">{uploadedFiles.length > 0 ? t('files_selected', {count: uploadedFiles.length}) : t('file_upload_label')}</span>
-                                    <span className="sm:hidden">{uploadedFiles.length > 0 ? uploadedFiles.length : ''}</span>
-                                </button>
-                                <div className="absolute bottom-full left-0 mb-2 w-max px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[70] whitespace-nowrap">
-                                    {t('tooltip_attach_files')}
-                                </div>
-                            </div>
-                            <input type="file" ref={fileInputRef} multiple onChange={(e) => handleFilesChange(e.target.files)} className="hidden" accept="image/*, application/pdf" />
                         </div>
 
                         <div className="px-4 py-2 relative flex-grow flex flex-col min-h-0 z-10">
+                            {isMobile && showAudioRecordedMessage && (
+                                <div className="text-xs md:text-sm font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50/80 dark:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-700 rounded-xl px-3 py-2 text-center mb-2">
+                                  {t('audio_transcribed_message')}
+                                </div>
+                              )}
                             <textarea 
                                 ref={textareaRef} 
-                                value={doctorNotes} // SEGUIMOS TUS NOTAS MANUALES
+                                value={doctorNotes} 
                                 onChange={(e) => setDoctorNotes(e.target.value)} 
                                 onKeyDown={handleKeyDown} 
                                 onFocus={() => setIsInputFocused(true)} 
                                 onBlur={() => setIsInputFocused(false)}
-                                placeholder={t('transcript_placeholder')} // Cambiar en translation si gustas, pero este sirve
+                                placeholder={t('transcript_placeholder')} 
                                 rows={1} 
                                 className="w-full bg-transparent text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-600 text-sm resize-none outline-none custom-scrollbar overflow-y-auto leading-relaxed font-mono min-h-[40px] max-h-[160px]" 
                                 spellCheck={false} 
@@ -1221,61 +1233,39 @@ const App: React.FC = () => {
                                     </div>
                                 ))}
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1 sm:gap-2">
                                 
-                                {/* --- NUEVO: Menú Herramientas en Barra Input (Compacto) --- */}
-                                {/* Solo se muestra si NO hay nota generada aún y hay espacio */}
-                                {!generatedNote && (
-                                    <div className="relative group z-[60]">
-                                        <ToolsMenu onSelectTool={handleToolSelect} variant="input" />
+                                {/* BOTÓN ADJUNTO (MOVIDO AL INICIO) */}
+                                <div className="relative group z-[60]">
+                                    <button onClick={() => fileInputRef.current?.click()} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border transition-all ${uploadedFiles.length > 0 ? 'bg-sky-100 dark:bg-sky-500/20 text-sky-600 dark:text-sky-300 border-sky-200 dark:border-sky-500/30' : 'bg-slate-100 dark:bg-black/30 text-slate-500 dark:text-slate-400 border-transparent hover:bg-slate-200 dark:hover:bg-black/50'}`}>
+                                        <UploadIcon className="h-4 w-4" />
+                                        <span className="sr-only">{t('file_upload_label')}</span>
+                                        {uploadedFiles.length > 0 && <span className="text-[10px] font-bold">{uploadedFiles.length}</span>}
+                                    </button>
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[70] whitespace-nowrap">
+                                        {t('tooltip_attach_files')}
                                     </div>
-                                )}
+                                </div>
+                                <input type="file" ref={fileInputRef} multiple onChange={(e) => handleFilesChange(e.target.files)} className="hidden" accept="image/*, application/pdf" />
 
-                                {/* --- COMPONENTE VISUALIZADOR DE AUDIO --- */}
-                                {isRecording && (
-                                    <div className="relative group/meter flex items-end mx-2">
-                                        <div className="h-10 w-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden flex flex-col justify-end cursor-help">
-                                            <div 
-                                                className="w-full bg-emerald-500 transition-all duration-75 ease-out rounded-full"
-                                                style={{ height: `${Math.max(5, audioLevel)}%` }}
-                                            />
-                                        </div>
-
-                                        {/* EL TOOLTIP MEJORADO */}
-                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-64 p-3 bg-slate-800 text-white text-[10px] leading-relaxed rounded-xl shadow-xl opacity-0 group-hover/meter:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-slate-700">
-                                            <p className="font-bold text-emerald-400 mb-1">{t('audio_meter_title')}</p>
-                                            <p>{t('audio_meter_desc_1')}</p>
-                                            <ul className="mt-1 list-disc pl-3 space-y-1 text-slate-300">
-                                                <li>{t('audio_meter_desc_2')}</li>
-                                                <li>{t('audio_meter_solution')}</li>
-                                            </ul>
-                                            {/* Flechita decorativa */}
-                                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* --- BOTÓN: COPILOTO AUTOMÁTICO (TOGGLE) --- */}
+                                {/* COPILOTO (MOVIDO AL LUGAR DEL ADJUNTO) */}
                                 {(transcript.length > 15 && !generatedNote && !isLoading) && (
                                     <div className="relative group">
                                         <button 
                                             onClick={toggleAutoSuggestions}
-                                            className={`p-3 rounded-xl transition-all flex items-center gap-2 shadow-md ${
+                                            className={`p-2 sm:p-3 rounded-xl transition-all flex items-center gap-2 shadow-md ${
                                                 autoSuggestEnabled 
                                                 ? 'bg-amber-500 text-white ring-2 ring-amber-300 ring-offset-2 dark:ring-offset-black' 
                                                 : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 hover:text-amber-600 dark:hover:text-amber-400'
                                             }`}
                                         >
-                                            {/* Solo parpadea si REALMENTE está consultando (isSuggesting) */}
                                             <LightbulbIcon className={`h-5 w-5 ${isSuggesting ? 'animate-pulse' : ''}`} />
-                                            
-                                            {/* Indicador de estado activo (puntito) */}
                                             {autoSuggestEnabled && (
                                                 <span className="absolute top-2 right-2 w-2 h-2 bg-white rounded-full animate-ping"></span>
                                             )}
                                         </button>
                                         
-                                        <div className="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
+                                        <div className="absolute bottom-full right-0 mb-2 w-max max-w-[calc(100vw-2rem)] px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-normal text-right">
                                             {autoSuggestEnabled 
                                                 ? (isSuggesting ? t('suggesting_loading') : t('copilot_active')) 
                                                 : t('suggest_questions_tooltip')
@@ -1284,19 +1274,51 @@ const App: React.FC = () => {
                                     </div>
                                 )}
 
+                                {/* AUDIO METER */}
+                                {isRecording && (
+                                    <div className="relative group/meter flex items-end mx-1 sm:mx-2">
+                                        <div className={`h-10 w-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden flex flex-col justify-end cursor-help transition-opacity ${isInputFocused ? 'opacity-60' : 'opacity-100'}`}>
+                                            <div 
+                                                className="w-full bg-emerald-500 transition-all duration-75 ease-out rounded-full"
+                                                style={{ height: `${Math.max(5, audioLevel)}%` }}
+                                            />
+                                        </div>
+
+                                        <div className={`absolute bottom-full right-0 mb-3 w-64 max-w-[80vw] p-3 bg-slate-800 text-white text-[10px] leading-relaxed rounded-xl shadow-xl transition-opacity duration-200 pointer-events-none z-50 border border-slate-700 whitespace-normal ${showAudioHelp ? 'opacity-100' : 'opacity-0 group-hover/meter:opacity-100'}`}>
+                                            <p className="font-bold text-emerald-400 mb-1">{t('audio_meter_title')}</p>
+                                            <p>{t('audio_meter_desc_1')}</p>
+                                            <ul className="mt-1 list-disc pl-3 space-y-1 text-slate-300">
+                                                <li>{t('audio_meter_desc_2')}</li>
+                                                <li>{t('audio_meter_solution')}</li>
+                                            </ul>
+                                            <div className="absolute top-full right-4 border-4 border-transparent border-t-slate-800"></div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* MICRÓFONO */}
                                 <div className="relative group">
-                                    <button onClick={handleRecordToggle} className={`p-3 rounded-xl transition-all flex items-center gap-2 ${isRecording ? 'bg-rose-500 text-white animate-pulse shadow-lg shadow-rose-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white'}`}>
-                                        {isRecording ? <StopIcon className="h-5 w-5" /> : <MicrophoneIcon className="h-5 w-5" />}
-                                        {isRecording && <span className="text-xs font-bold">{t('transcribing_label')}</span>}
+                                    <button onClick={handleRecordToggle} className={`p-2 sm:p-3 rounded-xl transition-all flex items-center gap-2 ${isRecording ? 'bg-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.4)] ring-2 ring-emerald-400/50' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white'}`}>
+                                        {isRecording ? (
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex items-end gap-1 h-3.5">
+                                                    <span className="w-1 bg-white rounded-full animate-[bounce_1s_infinite] h-2"></span>
+                                                    <span className="w-1 bg-white rounded-full animate-[bounce_1.2s_infinite_0.2s] h-3.5"></span>
+                                                    <span className="w-1 bg-white rounded-full animate-[bounce_1s_infinite_0.4s] h-2"></span>
+                                                </div>
+                                                <span className="text-xs font-bold uppercase tracking-wider hidden sm:inline">{t('listening_label')}</span>
+                                            </div>
+                                        ) : <MicrophoneIcon className="h-5 w-5" />}
                                     </button>
-                                    <div className="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
+                                    <div className="absolute bottom-full right-0 mb-2 w-max max-w-[calc(100vw-2rem)] px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-normal text-right">
                                         {isRecording ? t('stop_transcribing_tooltip') : t('start_transcribing_tooltip')}
                                     </div>
                                 </div>
                                 
+                                {/* GENERAR */}
                                 {isLoading ? (
                                     <div className="relative group">
-                                        <button onClick={handleStopGeneration} className="p-3 rounded-xl bg-rose-600 text-white shadow-lg shadow-rose-500/20 hover:bg-rose-50 transition-all transform active:scale-95">
+                                        <button onClick={handleStopGeneration} className="p-2 sm:p-3 rounded-xl bg-rose-600 text-white shadow-lg shadow-rose-500/20 hover:bg-rose-50 transition-all transform active:scale-95">
                                             <StopIcon className="h-5 w-5 fill-current" />
                                         </button>
                                         <div className="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
@@ -1305,7 +1327,7 @@ const App: React.FC = () => {
                                     </div>
                                 ) : (
                                     <div className="relative group">
-                                        <button onClick={handleGenerateNote} disabled={!canGenerate} className="p-3 rounded-xl bg-sky-600 text-white shadow-lg shadow-sky-900/20 hover:bg-sky-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform active:scale-95">
+                                        <button onClick={handleGenerateNote} disabled={!canGenerate} className="p-2 sm:p-3 rounded-xl bg-sky-600 text-white shadow-lg shadow-sky-900/20 hover:bg-sky-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform active:scale-95">
                                             <SparklesIcon className="h-5 w-5 fill-current"/>
                                         </button>
                                         {!canGenerate ? (
@@ -1331,12 +1353,34 @@ const App: React.FC = () => {
         )}
       </main>
 
-      {/* --- CÓDIGO DEL MODAL DE PERFIL Y TUTORIAL EXISTENTE... --- */}
+      {/* --- MODAL DE DATOS FALTANTES (NUEVO UI) --- */}
+      {showMissingDataModal && (
+         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in zoom-in duration-200">
+             <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center relative">
+                 <div className="mx-auto w-12 h-12 bg-sky-100 dark:bg-sky-900/30 rounded-full flex items-center justify-center mb-4 text-sky-600 dark:text-sky-400">
+                     <UserIcon className="h-6 w-6" />
+                 </div>
+                 <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Faltan Datos del Paciente</h3>
+                 <p className="text-center font-medium text-slate-600 dark:text-slate-300 text-sm mb-6 leading-relaxed">
+                     Para generar la nota clínica, es necesario ingresar la <strong>Edad</strong> y el <strong>Sexo</strong> del paciente en la barra inferior.
+                 </p>
+                 <button 
+                    onClick={() => setShowMissingDataModal(false)} 
+                    className="w-full px-5 py-3 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-sm font-bold shadow-lg shadow-sky-500/20 transition-transform active:scale-95"
+                 >
+                     Entendido
+                 </button>
+             </div>
+         </div>
+      )}
+
+      {/* ... (Otros modales existentes: Perfil, Tutorial, SplitTip, Confirm) sin cambios ... */}
       {showProfile && (
          <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowProfile(false)}>
             <div className="bg-white dark:bg-[#0f172a] w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 relative" onClick={e => e.stopPropagation()}>
                 <button onClick={() => setShowProfile(false)} className="absolute right-4 top-4 text-slate-400 hover:text-slate-900 dark:hover:text-white"><XIcon className="h-5 w-5"/></button>
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-6">{t('profile_title')}</h2>
+                {/* Contenido Perfil ... (Igual que antes) */}
                 <div className="space-y-5">
                     <div className="grid grid-cols-3 gap-4">
                         <div className="col-span-1">
@@ -1390,6 +1434,7 @@ const App: React.FC = () => {
             </div>
          </div>
       )}
+      
       {showTutorial && (
         <div className="fixed inset-0 z-[110] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300" onClick={() => setShowTutorial(false)}>
             <div className="bg-black w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl border border-slate-800 relative" onClick={e => e.stopPropagation()}>
@@ -1448,7 +1493,6 @@ const App: React.FC = () => {
              </div>
       )}
 
-      {/* --- NUEVO: MODAL DE CERTIFICADOS (PASO 5) --- */}
       {activeTool && activeTool.type === 'certificate' && (
         <CertificateModal 
             isOpen={true}

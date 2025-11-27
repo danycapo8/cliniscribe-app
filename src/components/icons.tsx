@@ -25,9 +25,9 @@ import {
   ThumbsDown as ThumbsDownIcon,
   Video as VideoIcon,
   Stethoscope as StethoscopeIcon,
-  // --- NUEVOS ICONOS AGREGADOS ---
   Wrench as WrenchIcon,
-  FileText as FileTextIcon
+  FileText as FileTextIcon,
+  Activity as ActivityIcon // NUEVO: Agregado para el menú de exámenes
 } from 'lucide-react';
 
 export { 
@@ -57,7 +57,7 @@ export {
   ThumbsDownIcon, 
   VideoIcon, 
   StethoscopeIcon,
-  // --- NUEVOS EXPORTS AGREGADOS ---
   WrenchIcon,
-  FileTextIcon
+  FileTextIcon,
+  ActivityIcon // NUEVO: Exportado
 };

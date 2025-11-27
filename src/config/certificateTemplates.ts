@@ -1,9 +1,26 @@
 import { CertificateData, CertificateType } from '../types/certificates';
-// CORRECCIÓN: Buscar tipos de Gemini.
-// Si están en src/services/types/gemini.types.ts:
 import { Profile, ConsultationContext } from '../services/types/gemini.types';
 
-const getChileanDate = () => new Date().toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' });
+// Helper para formatear fechas en español (Ej: "27 de noviembre de 2025")
+const formatDate = (dateStr?: string) => {
+    if (!dateStr) return new Date().toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' });
+    
+    const parts = dateStr.split('-');
+    const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 12, 0, 0);
+    
+    return d.toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' });
+};
+
+// Cálculo seguro de fecha de término
+const getEndDate = (startStr: string, days: number) => {
+    if (!startStr) return "...";
+    const parts = startStr.split('-');
+    const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 12, 0, 0);
+    
+    // Restamos 1 día porque el inicio es inclusivo
+    d.setDate(d.getDate() + (days - 1));
+    return d.toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' });
+};
 
 export const generateCertificateText = (
   type: CertificateType,
@@ -11,49 +28,59 @@ export const generateCertificateText = (
   context: ConsultationContext,
   profile: Profile
 ): string => {
-  const dateStr = getChileanDate();
   
-  // Footer estándar
-  const footer = `\n\n---\n${profile.title} ${profile.fullName || '____________________'}\n${profile.specialty}\nRut/RMP: ____________________\nFirma y Timbre`;
+  // Función simple para títulos en mayúsculas (formato texto plano)
+  const title = (text: string) => `${text.toUpperCase()}\n\n`;
 
   switch (type) {
     case 'reposo':
-      return `## CERTIFICADO DE REPOSO MÉDICO\n\n` +
-        `**Diagnóstico:** ${data.diagnosis}\n` +
-        `**Tiempo de Reposo:** ${data.days} días\n` +
-        `**Periodo:** Desde ${dateStr} (inclusive)\n\n` +
-        `**Fundamento Clínico:**\n${data.justification}\n\n` +
-        `**Indicaciones y Signos de Alarma:**\n${data.indications || '- Fiebre persistente o compromiso del estado general.'}\n` +
-        `\n*Documento de indicación clínica. Para trabajadores dependientes, requiere tramitación de Licencia Médica Electrónica oficial.*` + 
-        footer;
+      const startDateFormatted = formatDate(data.startDate);
+      const endDateFormatted = data.startDate && data.days ? getEndDate(data.startDate, data.days) : '...';
+
+      return title("Certificado de Indicación de Reposo") +
+        `DIAGNÓSTICO PRINCIPAL:\n${data.diagnosis}\n\n` +
+        `INDICACIÓN:\n` +
+        `Se indica reposo en domicilio por un periodo de ${data.days} días, a contar del ${startDateFormatted} hasta el ${endDateFormatted} (ambos inclusive).\n\n` +
+        `FUNDAMENTO CLÍNICO:\n` +
+        `${data.justification}\n\n` +
+        `OBSERVACIONES:\n` +
+        `${data.indications || 'Reposo relativo y control SOS.'}`;
 
     case 'alta_deportiva':
-      return `## CERTIFICADO DE APTITUD DEPORTIVA\n\n` +
-        `**Actividad Solicitada:** ${data.activity || 'Actividad Física General'}\n\n` +
-        `**Evaluación:**\n` +
-        `Paciente de ${context.age} años, sexo ${context.sex}, evaluado(a) clínicamente en la fecha.\n` +
+      return title("Certificado de Aptitud Deportiva") +
+        `ACTIVIDAD SOLICITADA:\n${data.activity || 'Actividad Física General'}\n\n` +
+        `CERTIFICACIÓN:\n` +
+        `En base a la evaluación clínica realizada en la fecha, se certifica que el paciente se encuentra clínicamente apto(a) para la práctica de la actividad mencionada.\n\n` +
+        `FUNDAMENTO:\n` +
         `${data.justification}\n\n` +
-        `**Conclusión:**\n` +
-        `NO se identifican contraindicaciones cardiovasculares ni musculoesqueléticas evidentes al examen físico actual.\n` +
-        `Se considera **APTO(A)** para la práctica deportiva recreacional.\n` +
-        footer;
+        `CONCLUSIÓN:\n` +
+        `No se pesquisan contraindicaciones cardiovasculares ni musculoesqueléticas evidentes al examen físico actual.`;
         
     case 'buena_salud':
-       return `## CERTIFICADO DE BUENA SALUD\n\n` +
-        `**Evaluación Clínica:**\n` +
+       return title("Certificado de Salud") +
+        `CERTIFICACIÓN:\n` +
+        `Se certifica que, al momento del examen físico y la anamnesis, el paciente se encuentra clínicamente sano y sin evidencia de patologías infecciosas agudas en curso.\n\n` +
+        `OBSERVACIONES CLÍNICAS:\n` +
         `${data.justification}\n\n` +
-        `**Conclusión:**\n` +
-        `Al examen físico y anamnesis actual, no se pesquisan patologías infecciosas agudas ni crónicas descompensadas que limiten sus actividades habituales.\n` +
-        footer;
+        `Se extiende el presente certificado a solicitud del interesado(a) para los fines que estime conveniente.`;
 
     case 'aptitud_laboral':
-        return `## CERTIFICADO DE APTITUD LABORAL\n\n` +
-        `**Cargo:** ${data.activity || 'No especificado'}\n\n` +
-        `**Evaluación:**\n` +
-        `${data.justification}\n\n` +
-        `**Conclusión:**\n` +
-        `Salud compatible con el cargo indicado.\n` +
-        footer;
+        return title("Certificado de Aptitud Laboral") +
+        `CARGO / FUNCIÓN:\n${data.activity || 'No especificado'}\n\n` +
+        `CONCLUSIÓN:\n` +
+        `Salud COMPATIBLE con el cargo indicado.\n\n` +
+        `FUNDAMENTO:\n` +
+        `${data.justification}`;
+
+    case 'asistencia':
+        const dateStr = formatDate();
+        return title("Certificado de Asistencia Médica") +
+        `CERTIFICACIÓN:\n` +
+        `Se certifica la asistencia a control médico el día ${dateStr}.\n\n` +
+        `MOTIVO DE CONSULTA:\n` +
+        `${data.diagnosis || 'Control de salud'}\n\n` +
+        `COMENTARIOS:\n` +
+        `${data.justification}`;
 
     default:
       return '';

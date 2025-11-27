@@ -34,7 +34,7 @@ export const translations: Record<Language, Record<string, string>> = {
     field_reason: "Reason for Consultation",
     field_history: "Medical History",
     field_meds: "Current Medications",
-    field_allergies: "Allergies",
+    field_allergies: "Alergias",
     field_current_illness: "History of Present Illness",
     section_physical: "Physical Exam",
     field_general: "General/Skin",
@@ -62,7 +62,7 @@ export const translations: Record<Language, Record<string, string>> = {
     settings_label: "Settings",
     greeting_morning: "Hello",
     greeting_subtitle: "What patient are we seeing today?",
-    transcribing_label: "TRANSCRIBING...",
+    transcribing_label: "🎤 HD-AUDIO ACTIVE", 
     
     // --- MODALITY KEYS ---
     modality_label: "Modality",
@@ -85,9 +85,9 @@ export const translations: Record<Language, Record<string, string>> = {
     tooltip_modality_in_person: "In-Person",
     tooltip_modality_telemedicine: "Telemedicine",
     // [NUEVO] Tooltips para sugerencias manuales
-    suggest_questions_tooltip: "Analyze transcript and suggest key questions",
+    suggest_questions_tooltip: "Suggest Questions",
     suggesting_loading: "Thinking...",
-    copilot_active: "Copilot Active", // NUEVA: Copilot Activo
+    copilot_active: "Copilot Active", 
     
     // --- UPDATED LEGAL/SAFE TERMINOLOGY ---
     start_transcribing_tooltip: "Start Transcription",
@@ -95,6 +95,8 @@ export const translations: Record<Language, Record<string, string>> = {
     stop_generation_tooltip: "Stop Generation",
     tooltip_generate_active: "Generate Note",
     tooltip_attach: "Attach", 
+    listening_label: "LISTENING", // NUEVA: Estado de escucha activa
+    audio_transcribed_message: "✅ Audio transcribed. Press Generate note.", // NUEVA: Mensaje de éxito al detener
     
     // --- INPUT UI KEYS ---
     expand_input: "Expand",
@@ -125,7 +127,7 @@ export const translations: Record<Language, Record<string, string>> = {
     sex_male: "Male",
     sex_other: "Other",
     file_upload_label: "Attach",
-    file_upload_warning: "PRIVACY: No visible PII.",
+    file_upload_warning: "PRIVACIDAD: No visible PII.",
     select_files_button: "Select Files",
     files_selected: "{{count}} files",
     preview_file: "Preview",
@@ -134,7 +136,7 @@ export const translations: Record<Language, Record<string, string>> = {
     remove_file_aria: "Remove File",
     transcript_label: "Transcript",
     copy_button_title: "Copy",
-    transcript_placeholder: "Type context or transcribe...",
+    transcript_placeholder: "✏️ Enter key findings/Physical Exam. (These will be combined with the audio for the note).", // ACTUALIZADO
     record_disabled_tooltip: "Enter Age/Sex",
     generate_disabled_tooltip: "Enter Context", 
     start_recording: "Transcribe",
@@ -191,14 +193,15 @@ export const translations: Record<Language, Record<string, string>> = {
     cancel_button: "Cancel",
     confirm_button: "Confirm",
     
-    logout_modal_title: "Log Out",
-    clear_history_modal_title: "Clear History",
-    delete_note_modal_title: "Delete Note",
+    // --- MODALES MEJORADOS ---
+    logout_modal_title: "Confirm Logout", 
+    clear_history_modal_title: "Clear All History", 
+    delete_note_modal_title: "Delete Note", 
     clear_input_modal_title: "Clear Input",
     
-    logout_confirm: "Log out?",
-    clear_history_confirm: "Delete all history?",
-    delete_note_confirm: "Delete this note?",
+    logout_confirm: "End current session?", // ⬅️ MEJORADO (Conciso)
+    clear_history_confirm: "Permanently delete all saved notes?", // ⬅️ MEJORADO (Conciso)
+    delete_note_confirm: "Delete this note permanently?", // ⬅️ MEJORADO (Conciso)
     clear_input_confirm: "Clear all text?",
     
     login_title: "Welcome",
@@ -282,7 +285,7 @@ export const translations: Record<Language, Record<string, string>> = {
     settings_label: "Configurar",
     greeting_morning: "Hola",
     greeting_subtitle: "¿Qué paciente veremos hoy?",
-    transcribing_label: "TRANSCRIBIENDO...",
+    transcribing_label: "🎤 AUDIO-HD ACTIVO", 
     
     // --- MODALITY KEYS ---
     modality_label: "Modalidad",
@@ -305,9 +308,9 @@ export const translations: Record<Language, Record<string, string>> = {
     tooltip_modality_in_person: "Presencial",
     tooltip_modality_telemedicine: "Telemedicina",
     // [NUEVO] Tooltips para sugerencias manuales
-    suggest_questions_tooltip: "Analizar transcripción y sugerir preguntas clave",
+    suggest_questions_tooltip: "Sugerir Preguntas",
     suggesting_loading: "Pensando...",
-    copilot_active: "Copiloto Activo", // NUEVA: Copilot Activo (de imagen)
+    copilot_active: "Copiloto Activo", 
     
     // --- UPDATED LEGAL/SAFE TERMINOLOGY ---
     start_transcribing_tooltip: "Transcribir",
@@ -315,6 +318,8 @@ export const translations: Record<Language, Record<string, string>> = {
     stop_generation_tooltip: "Detener Generación",
     tooltip_generate_active: "Generar Nota", 
     tooltip_attach: "Adjuntar",
+    listening_label: "ESCUCHANDO", // NUEVA: Estado de escucha activa
+    audio_transcribed_message: "✅ Audio transcrito. Presione Generar nota.", // NUEVA: Mensaje de éxito al detener
     
     // --- INPUT UI KEYS ---
     expand_input: "Expandir",
@@ -354,7 +359,7 @@ export const translations: Record<Language, Record<string, string>> = {
     remove_file_aria: "Eliminar archivo",
     transcript_label: "Transcripción",
     copy_button_title: "Copiar",
-    transcript_placeholder: "Escribe o transcribe aquí...",
+    transcript_placeholder: "✏️ Ingresa datos clave/Examen físico. (Se complementarán con el audio para la nota).", // ACTUALIZADO
     record_disabled_tooltip: "Ingrese Edad/Sexo",
     generate_disabled_tooltip: "Ingrese Contexto",
     start_recording: "Transcribir",
@@ -411,14 +416,15 @@ export const translations: Record<Language, Record<string, string>> = {
     cancel_button: "Cancelar",
     confirm_button: "Confirmar",
     
-    logout_modal_title: "Cerrar Sesión",
-    clear_history_modal_title: "Borrar Historial",
-    delete_note_modal_title: "Eliminar Nota",
+    // --- MODALES MEJORADOS ---
+    logout_modal_title: "Cerrar Sesión", 
+    clear_history_modal_title: "Borrar Todo", 
+    delete_note_modal_title: "Eliminar Nota", 
     clear_input_modal_title: "Limpiar",
 
-    logout_confirm: "¿Cerrar sesión?",
-    clear_history_confirm: "¿Borrar todo?",
-    delete_note_confirm: "¿Eliminar nota?",
+    logout_confirm: "¿Cerrar sesión actual?", // ⬅️ MEJORADO (Conciso)
+    clear_history_confirm: "¿Eliminar todo el historial irreversiblemente?", // ⬅️ MEJORADO (Conciso)
+    delete_note_confirm: "¿Eliminar esta nota para siempre?", // ⬅️ MEJORADO (Conciso)
     clear_input_confirm: "¿Borrar texto?",
     
     login_title: "Bienvenido",
@@ -441,7 +447,6 @@ export const translations: Record<Language, Record<string, string>> = {
     feedback_problem_title: "Reportar",
 
     tag_hallucination: "Alucinación",
-    tag_hallucination_desc: "Info inventada.", 
     tag_format: "Formato",
     tag_format_desc: "Mala estructura.", 
     tag_missing: "Falta Info",
@@ -499,7 +504,7 @@ export const translations: Record<Language, Record<string, string>> = {
     settings_label: "Configurações",
     greeting_morning: "Olá",
     greeting_subtitle: "Qual paciente veremos hoje?",
-    transcribing_label: "TRANSCREVENDO...",
+    transcribing_label: "🎤 ÁUDIO-HD ATIVO", 
     
     // --- MODALITY KEYS ---
     modality_label: "Modalidade",
@@ -522,9 +527,9 @@ export const translations: Record<Language, Record<string, string>> = {
     tooltip_modality_in_person: "Presencial",
     tooltip_modality_telemedicine: "Telemedicina",
     // [NUEVO] Tooltips para sugerencias manuales
-    suggest_questions_tooltip: "Analisar transcrição e sugerir perguntas",
+    suggest_questions_tooltip: "Sugerir Perguntas",
     suggesting_loading: "Pensando...",
-    copilot_active: "Co-piloto Ativo", // NUEVA: Copilot Activo (de imagen)
+    copilot_active: "Co-piloto Ativo", 
 
     // --- UPDATED LEGAL/SAFE TERMINOLOGY ---
     start_transcribing_tooltip: "Transcrever",
@@ -532,6 +537,8 @@ export const translations: Record<Language, Record<string, string>> = {
     stop_generation_tooltip: "Parar Geração",
     tooltip_generate_active: "Gerar Nota", 
     tooltip_attach: "Adicionar", 
+    listening_label: "ESCUTANDO", // NUEVA: Estado de escucha activa
+    audio_transcribed_message: "✅ Áudio transcrito. Pressione Gerar nota.", // NUEVA: Mensaje de éxito al detener
     
     // --- INPUT UI KEYS ---
     expand_input: "Expandir",
@@ -572,7 +579,7 @@ export const translations: Record<Language, Record<string, string>> = {
     remove_file_aria: "Remover arquivo",
     transcript_label: "Transcrição",
     copy_button_title: "Copiar",
-    transcript_placeholder: "Digite ou transcreva...",
+    transcript_placeholder: "✏️ Insira dados-chave/Exame físico. (Serão complementados com o áudio para a nota).", // ACTUALIZADO
     record_disabled_tooltip: "Insira Idade/Sexo",
     generate_disabled_tooltip: "Insira Contexto",
     start_recording: "Transcrever",
@@ -599,7 +606,7 @@ export const translations: Record<Language, Record<string, string>> = {
     category_red_flag: "🚩 ALERTA",
     category_examination: "Exame Físico",
     category_diagnostic: "Diagnóstico",
-    category_management: "Terapêutica", // NUEVA: Gestión
+    category_management: "Terapéutica", // NUEVA: Gestión
     error_fetching_suggestions: "Erro",
     tab_note: "Nota",
     tab_history: "Histórico",
@@ -632,14 +639,15 @@ export const translations: Record<Language, Record<string, string>> = {
     cancel_button: "Cancelar",
     confirm_button: "Confirmar",
     
-    logout_modal_title: "Sair",
-    clear_history_modal_title: "Limpar Histórico",
-    delete_note_modal_title: "Excluir Nota",
+    // --- MODALES MEJORADOS ---
+    logout_modal_title: "Sair", 
+    clear_history_modal_title: "Apagar Tudo", 
+    delete_note_modal_title: "Excluir Nota", 
     clear_input_modal_title: "Limpar",
 
-    logout_confirm: "Deseja sair?",
-    clear_history_confirm: "Apagar tudo?",
-    delete_note_confirm: "Excluir nota?",
+    logout_confirm: "Sair da sessão?", // ⬅️ MEJORADO (Conciso)
+    clear_history_confirm: "Apagar todo o histórico?", // ⬅️ MEJORADO (Conciso)
+    delete_note_confirm: "Excluir esta nota?", // ⬅️ MEJORADO (Conciso)
     clear_input_confirm: "Limpar texto?",
     
     login_title: "Bem-vindo",
@@ -662,7 +670,6 @@ export const translations: Record<Language, Record<string, string>> = {
     feedback_problem_title: "Relatar",
 
     tag_hallucination: "Alucinação",
-    tag_hallucination_desc: "Info inventada.", 
     tag_format: "Formato",
     tag_format_desc: "Estrutura ruim.", 
     tag_missing: "Falta Info",

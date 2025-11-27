@@ -1,6 +1,5 @@
 import { CertificateType, CertificateData } from '../types/certificates';
 import { generateClinicalNoteStream } from './geminiService'; 
-// CORRECCIÓN: Importar desde la misma carpeta services o subcarpeta types
 import { Profile, ConsultationContext } from './types/gemini.types';
 
 export async function generateCertificateData(
@@ -11,50 +10,56 @@ export async function generateCertificateData(
 ): Promise<CertificateData> {
   
   const systemPrompt = `
-    Eres un asistente médico administrativo experto en terminología clínica de Chile.
-    TU TAREA: Extraer datos técnicos de una consulta para llenar un formulario JSON.
-    SALIDA: ÚNICAMENTE un objeto JSON válido.
-    REGLAS DE REDACCIÓN (Campo 'justification'):
-    - Usa lenguaje técnico formal.
-    - Sé breve y directo.
+    Eres CliniScribe, un asistente médico experto en redacción clínica legal en Chile.
+    
+    OBJETIVO: Generar el contenido central para un certificado médico en formato JSON.
+    
+    INSTRUCCIONES DE REDACCIÓN (Campo 'justification'):
+    1. ESTILO: Escribe un párrafo narrativo único, cohesivo y profesional. NO uses viñetas.
+    2. TONO: Formal y técnico (ej: "Paciente cursa con cuadro caracterizado por...", "Al examen físico destaca...").
+    3. CRÍTICO - NO REDUNDANCIA: El documento final ya tiene un campo titulado "Diagnóstico". POR LO TANTO, NO repitas frases como "El diagnóstico es X" dentro de la justificación. Enfócate en describir la sintomatología, la evolución o los hallazgos que fundamentan ese diagnóstico y la indicación.
   `;
 
   let specificPrompt = "";
+  
   if (type === 'reposo') {
     specificPrompt = `
-      Contexto: Certificado de Reposo.
-      Input Adicional: "${userPrompt}"
-      Texto Base: "${transcriptOrNote.substring(0, 3000)}"
+      TIPO: Certificado de Reposo.
+      INPUTS DEL MÉDICO: "${userPrompt}"
+      CONTEXTO CONSULTA: "${transcriptOrNote.substring(0, 3500)}"
 
-      Genera JSON:
+      TAREA:
+      1. 'diagnosis': Infiere el nombre técnico (CIE-10).
+      2. 'justification': Explica la incapacidad temporal basándote en los síntomas y riesgos, sin repetir el nombre del diagnóstico.
+      3. 'indications': Medidas de soporte breves.
+
+      FORMATO JSON ESPERADO:
       {
-        "diagnosis": "Diagnóstico CIE-10 formal",
-        "days": número (días de reposo),
-        "justification": "Redacción técnica justificando el reposo (2-3 líneas).",
-        "indications": "Signos de alarma específicos"
+        "diagnosis": "Texto breve (Ej: Gastroenteritis Aguda)",
+        "justification": "Párrafo narrativo (Ej: Se constata cuadro de 2 días de evolución con compromiso del estado general y deshidratación leve, requiriendo reposo para manejo sintomático...)",
+        "indications": "Texto breve (Ej: Hidratación oral y dieta blanda)."
       }
     `;
   } else {
     specificPrompt = `
-      Contexto: Certificado General (${type}).
-      Input Adicional: "${userPrompt}"
-      Texto Base: "${transcriptOrNote.substring(0, 3000)}"
+      TIPO: Certificado General (${type}).
+      INPUTS DEL MÉDICO: "${userPrompt}"
+      CONTEXTO CONSULTA: "${transcriptOrNote.substring(0, 3500)}"
 
-      Genera JSON:
+      FORMATO JSON ESPERADO:
       {
-        "diagnosis": "Estado de salud/Diagnóstico",
-        "activity": "Actividad/Deporte/Cargo",
-        "justification": "Resumen de hallazgos al examen físico y anamnesis."
+        "diagnosis": "Estado de salud (Ej: Sano / Apto)",
+        "activity": "Actividad o Cargo (si aplica)",
+        "justification": "Párrafo narrativo que certifica la condición de salud al momento del examen."
       }
     `;
   }
 
-  // --- CORRECCIÓN DEL ERROR DE TIPO (Modality) ---
   const dummyContext: ConsultationContext = { 
     age: "0", 
     sex: "N/A", 
     additionalContext: "",
-    modality: 'in_person' // Agregado para satisfacer la interfaz TypeScript
+    modality: 'in_person' 
   }; 
   
   let fullResponse = "";
@@ -71,14 +76,15 @@ export async function generateCertificateData(
         fullResponse += chunk.text;
     }
 
+    // Limpieza robusta del JSON por si la IA incluye markdown
     const cleanJson = fullResponse.replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(cleanJson) as CertificateData;
 
   } catch (e) {
     console.error("Error generando certificado:", e);
     return {
-      diagnosis: "A completar manualmente",
-      justification: "No se pudo generar el texto automático. Por favor redacte manualmente.",
+      diagnosis: "Completar",
+      justification: "Se certifica que el paciente se encuentra bajo evaluación médica y requiere las indicaciones señaladas.",
       days: 1
     };
   }
