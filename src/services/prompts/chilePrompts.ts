@@ -122,14 +122,14 @@ REGLAS DE NEGOCIO Y NORMATIVA CHILENA (CRÍTICO)
 
 /**
  * QUERY INSTRUCTION (QI)
- * (INTACTO - Motor de Razonamiento incluye Safety Check y ENO)
+ * (EMOJIS ELIMINADOS DE CABECERAS PARA CORRECCIÓN DE PDF)
  */
 export function getChileQueryInstruction(transcript: string, hasFiles: boolean): string {
   return `TRANSCRIPCIÓN DE LA CONSULTA:
 """
 ${transcript}
 """
-${hasFiles ? '📎 (Se adjuntan archivos/imágenes de apoyo)' : ''}
+${hasFiles ? '(Se adjuntan archivos/imágenes de apoyo)' : ''}
 
 ═══════════════════════════════════════════════════════════════
 MOTOR DE RAZONAMIENTO CLÍNICO (SEGURIDAD ACTIVA)
@@ -158,44 +158,44 @@ PASO 4: PLAN Y FLUJO:
 FORMATO DE SALIDA (MARKDOWN)
 ═══════════════════════════════════════════════════════════════
 
-## 🩺 Motivo de Consulta
+## Motivo de Consulta
 [Breve]
 
-## 📋 Anamnesis Próxima
+## Anamnesis Próxima
 [Narrativa cronológica. Usar "Paciente" en lugar de nombres.]
 
-## 🗂️ Antecedentes Relevantes
+## Antecedentes Relevantes
 - **Morbidos:**
 - **Gineco-Obstétricos:** (Si aplica)
 - **Fármacos:**
 - **Alergias:**
 
-## 🔍 Examen Físico
+## Examen Físico
 - **Signos Vitales:** [Datos o "No registrado"]
 - **Hallazgos:** [Solo lo mencionado/visible]
 
-## 🎯 Hipótesis Diagnósticas
+## Hipótesis Diagnósticas
 1. **[Diagnóstico Principal]** {{SI APLICA: - **GES: SÍ**}} {{SI APLICA: - **ENO: Notificación Obligatoria**}}
 2. **[Diferencial]**
 
-## 💊 Plan Terapéutico
+## Plan Terapéutico
 ${`{{AQUÍ SOLO LISTAR FÁRMACOS A INICIAR/MANTENER.}}`}
 ${`{{SI HAY FÁRMACOS:}}`}
 1. **[Nombre Fármaco]** [Concentración y Forma Farmacéutica]
    - Indicación: [Dosis y Horario] (Sin asteriscos)
 ${`{{SI NO HAY FÁRMACOS: "No se indican medicamentos."}}`}
 
-## 🔬 Solicitud de Exámenes
+## Solicitud de Exámenes
 ${`{{SOLO SI HAY EXÁMENES: Listar con nomenclatura chilena.}}`}
 ${`{{SI NO SE SOLICITAN: OMITIR ESTA SECCIÓN.}}`}
 
-## 📝 Indicaciones y Derivación
+## Indicaciones y Derivación
 - **Generales:** [Reposo, Dieta, Hidratación. AQUÍ INCLUIR SI SE DEBE SUSPENDER UN FÁRMACO].
 - **Signos de Alarma:** [Cuándo ir a urgencia]
 - **Derivación/Interconsulta:** ${`{{SI HAY DERIVACIÓN: "Se emite interconsulta a [Especialidad Médica] por [Motivo]". NO derivar patología médica a nutricionista.}}`}
 - **Seguimiento/Control:** ${`{{SI DERIVAS: "Control con [Especialista] con resultados". SI NO DERIVAS: Elegir entre "Control médico a la brevedad con resultados" (si faltan exám.) o "Control médico en [X] días" (evolución).}}`}
 
-## 🧠 Discusión Clínica y Resguardo (Uso Interno)
+## Discusión Clínica y Resguardo (Uso Interno)
 - **Razonamiento:** [Sintetiza el cuadro clínico, antecedentes y por qué se llegó al diagnóstico principal, mencionando diferenciales descartados].
 - **Alternativas Terapéuticas:** [Menciona qué opciones se consideraron (ej: esperar laboratorio vs iniciar tratamiento) y por qué se eligió el plan actual].
 - **Seguridad Clínica:** [Destaca descarte de patología grave, análisis de interacciones farmacológicas y pertinencia de notificación ENO si aplica].

@@ -4,18 +4,18 @@ export interface CertificateData {
   diagnosis: string;
   justification: string;
   days?: number;
-  startDate?: string; // Fecha de inicio para reposo
+  startDate?: string;
   indications?: string;
-  activity?: string; // Para deporte o cargo laboral
-  patientName?: string;
-  patientId?: string;
+  activity?: string;
+  patientName?: string; // Nuevo campo
+  patientId?: string;   // Nuevo campo
 }
 
 export interface CertificateConfig {
   type: CertificateType;
   title: string;
   description: string;
-  icon: string; // Nombre del icono para referencia visual
+  icon: string;
 }
 
 export const CERTIFICATE_OPTIONS: CertificateConfig[] = [

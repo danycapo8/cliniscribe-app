@@ -1,4 +1,3 @@
-// src/App.tsx
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { generateClinicalNoteStream, generateSuggestionsStateless, ConsultationContext, Profile, FilePart, ClinicalAlert, parseAndHandleGeminiError } from './services/geminiService';
 import { QuillIcon, SparklesIcon, TrashIcon, CopyIcon, SpinnerIcon, MicrophoneIcon, StopIcon, UploadIcon, LightbulbIcon, CheckCircleIcon, CheckIcon, XIcon, AlertTriangleIcon, FileDownIcon, NotesIcon, ChevronLeftIcon, MoonIcon, SunIcon, UserIcon, LogOutIcon, VideoIcon, StethoscopeIcon } from './components/icons';
@@ -7,7 +6,8 @@ import { FeedbackWidget } from './components/FeedbackWidget';
 import { supabase } from './services/supabaseClient';
 import { Session } from '@supabase/supabase-js';
 import Login from './components/Login';
-import tutorialVideo from './assets/tutorial_cliniscribe.mp4';
+// TUTORIAL ELIMINADO: import tutorialVideo...
+
 // IMPORTANTE: Asegúrate de haber creado este archivo en src/hooks/useAudioLevel.ts
 import { useAudioLevel } from './hooks/useAudioLevel';
 // IMPORTANTE: Asegúrate de haber creado este archivo en src/hooks/useAudioRecorder.ts
@@ -17,6 +17,12 @@ import { useAudioRecorder } from './hooks/useAudioRecorder';
 import { ToolsMenu } from './tools/ToolsMenu'; 
 import { CertificateModal } from './tools/CertificateModal';
 import { CertificateType } from './types/certificates';
+
+// --- IMPORTACIÓN DE SERVICIO DE CUOTAS (MONETIZACIÓN) ---
+import { checkQuota, registerUsage } from './services/usageService';
+import { SubscriptionTier, PLAN_LIMITS } from './types/subscription';
+import { SubscriptionDashboard } from './components/SubscriptionDashboard';
+import { LimitModal } from './components/LimitModal';
 
 declare global {
   interface Window {
@@ -43,6 +49,22 @@ const spanishStopWords = new Set(['el', 'la', 'los', 'las', 'un', 'una', 'y', 'o
 
 const normalizeTextForMatching = (text: string): string => {
     return text.toLowerCase().normalize("NFD").replace(RE_ACCENTS, "").replace(RE_PUNCTUATION, "").split(RE_WHITESPACE).filter(w => w.length > 0 && !spanishStopWords.has(w)).join(" ").trim();
+};
+
+// --- FUNCIÓN DE LIMPIEZA ROBUSTA PARA EXPORTAR/COPIAR ---
+const cleanTextForExport = (text: string): string => {
+    if (!text) return "";
+    return text
+        // 1. Eliminar TODOS los Emojis y símbolos gráficos (Rango Unicode amplio)
+        .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1F018}-\u{1F270}\u{2328}\u{231A}\u{231B}]/gu, '')
+        // 2. Eliminar encabezados Markdown (## Título -> Título)
+        .replace(/^#{1,6}\s+/gm, '') 
+        // 3. Eliminar negritas Markdown (**texto** -> texto)
+        .replace(/\*\*(.*?)\*\*/g, '$1')
+        // 4. Eliminar otros formateos markdown (* cursiva)
+        .replace(/\*(?!\s)(.*?)\*/g, '$1')
+        // 5. Limpiar espacios extra al inicio de línea
+        .trim();
 };
 
 const checkIfQuestionAsked = (transcript: string, questionText: string): boolean => {
@@ -78,26 +100,29 @@ const SplitIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
-// --- Extended Types ---
+// --- Extended Types (ACTUALIZADO: Datos de Suscripción) ---
 interface ExtendedProfile extends Profile {
     fullName?: string;
     title?: string;
     theme?: 'dark' | 'light';
     avatarUrl?: string;
+    // Campos de Suscripción
+    subscription_tier?: 'free' | 'basic' | 'pro';
+    notes_usage_count?: number;
+    current_period_end?: string;
 }
 
 interface SuggestedQuestion { text: string; category: string; asked: boolean; }
 interface HistoricalNote { id: string; timestamp: number; context: ConsultationContext; profile: Profile; note: string; alerts: ClinicalAlert[]; }
-interface UploadedFile { id: string; file; previewUrl?: string; }
+interface UploadedFile { id: string; file: any; previewUrl?: string; }
 
 // --- Helper Components ---
 const CopyButton: React.FC<{ text: string; className?: string; title?: string }> = ({ text, className = "", title = "Copy" }) => {
     const [copied, setCopied] = useState(false);
     const handleCopy = (e: React.MouseEvent) => {
         e.stopPropagation();
-        let cleanText = text ? text.replace(RE_BOLD_MARKDOWN, '$1').trim() : "";
-        cleanText = cleanText.replace(/\s*-\s*Probabilidad.*$/i, '').trim();
-        cleanText = cleanText.replace(/\s*\(\d+%\).*$/i, '').trim();
+        // USAR FUNCIÓN DE LIMPIEZA AQUÍ TAMBIÉN
+        const cleanText = cleanTextForExport(text);
         navigator.clipboard.writeText(cleanText);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
@@ -212,13 +237,16 @@ const App: React.FC = () => {
       country: 'Chile', 
       title: 'Dr.', 
       fullName: '', 
-      theme: 'dark' 
+      theme: 'dark',
+      subscription_tier: 'free',
+      notes_usage_count: 0
   };
   
   const [profile, setProfile] = useState<ExtendedProfile>(defaultProfile);
   const [editingProfile, setEditingProfile] = useState<ExtendedProfile>(defaultProfile);
   const [showProfile, setShowProfile] = useState(false);
-  const [showTutorial, setShowTutorial] = useState(false);
+  const [profileTab, setProfileTab] = useState<'subscription' | 'profile'>('subscription');
+  // TUTORIAL STATE ELIMINADO
   
   // --- UI STATES ---
   const [isInputFocused, setIsInputFocused] = useState(false);
@@ -228,11 +256,62 @@ const App: React.FC = () => {
   const [showAudioHelp, setShowAudioHelp] = useState(false); 
   const [showAudioRecordedMessage, setShowAudioRecordedMessage] = useState(false); 
   const [showMissingDataModal, setShowMissingDataModal] = useState(false);
+  const [showLimitModal, setShowLimitModal] = useState(false);
 
   const [autoSuggestEnabled, setAutoSuggestEnabled] = useState(false);
 
   // --- HERRAMIENTAS (Certificados) ---
   const [activeTool, setActiveTool] = useState<{type: 'certificate', subType: CertificateType} | null>(null);
+
+  const [subscription, setSubscription] = useState<{
+    tier: 'free' | 'basic' | 'pro';
+    count: number;
+    limit: number;
+    loading: boolean;
+  }>({ tier: 'free', count: 0, limit: 20, loading: true });
+
+  const refreshQuota = async (userId: string) => {
+      const { allowed, message } = await checkQuota(userId); 
+      
+      const { data } = await supabase
+          .from('profiles')
+          .select('notes_usage_count, subscription_tier')
+          .eq('id', userId)
+          .single();
+          
+      if (data) {
+          const tier = (data.subscription_tier as SubscriptionTier) || 'free';
+          
+          setSubscription({
+              tier: tier,
+              count: data.notes_usage_count || 0,
+              limit: PLAN_LIMITS[tier], 
+              loading: false
+          });
+      }
+  };
+
+  const verifyQuotaAccess = async (): Promise<boolean> => {
+      if (!session?.user) return true; 
+      
+      try {
+          const quota = await checkQuota(session.user.id);
+          if (!quota.allowed) {
+              setShowLimitModal(true);
+              return false;
+          }
+          return true;
+      } catch (e) {
+          console.error("Error verificando cuota:", e);
+          return false;
+      }
+  };
+
+  useEffect(() => {
+      if (session?.user?.id) {
+          refreshQuota(session.user.id);
+      }
+  }, [session]);
 
   const getInitialModality = (): 'in_person' | 'telemedicine' => {
       const storedModality = localStorage.getItem('cliniscribe_modality');
@@ -257,6 +336,7 @@ const App: React.FC = () => {
   const [alerts, setAlerts] = useState<ClinicalAlert[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true); 
 
   const audioRecorder = useAudioRecorder();
   const audioLevel = useAudioLevel(isRecording);
@@ -267,7 +347,6 @@ const App: React.FC = () => {
   
   const [suggestedQuestions, setSuggestedQuestions] = useState<SuggestedQuestion[]>([]);
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   
   const recognitionRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -288,7 +367,10 @@ const App: React.FC = () => {
       return hasContent;
   }, [transcript, doctorNotes, audioRecorder.audioBlob, uploadedFiles.length]);
 
-  const handleToolSelect = (tool: 'certificate', subType?: CertificateType) => {
+  const handleToolSelect = async (tool: 'certificate', subType?: CertificateType) => {
+    const hasAccess = await verifyQuotaAccess();
+    if (!hasAccess) return;
+
     if (subType) {
         setActiveTool({ type: 'certificate', subType });
     }
@@ -434,7 +516,7 @@ const App: React.FC = () => {
   const loadUserData = async (userId: string, meta: any) => {
       await recordLogin(userId);
       await fetchProfile(userId, meta);
-      await fetchHistory(userId); 
+      setHistory([]);
   };
   
   useEffect(() => {
@@ -469,15 +551,25 @@ const App: React.FC = () => {
   const recordLogin = async (userId: string) => { try { await supabase.from('profiles').update({ last_login_at: new Date().toISOString() }).eq('id', userId); } catch (e) {} };
   
   const fetchProfile = async (userId: string, meta: any) => { 
-      const { data, error } = await supabase.from('profiles').select('specialty, country, language, full_name, title, theme').eq('id', userId).single(); 
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('specialty, country, language, full_name, title, theme, subscription_tier, notes_usage_count, current_period_end')
+        .eq('id', userId)
+        .single(); 
+      
       const profileUpdate: any = { ...defaultProfile };
+      
       if (data && !error) {
-          profileUpdate.specialty = 'Médico General / Familia';
-          profileUpdate.country = 'Chile'; 
+          profileUpdate.specialty = data.specialty || 'Médico General / Familia';
+          profileUpdate.country = data.country || 'Chile'; 
           profileUpdate.language = data.language || 'es';
           profileUpdate.title = data.title || 'Dr.';
           profileUpdate.fullName = data.full_name || ''; 
-          profileUpdate.theme = data.theme || 'dark';     
+          profileUpdate.theme = data.theme || 'dark';
+          
+          profileUpdate.subscription_tier = data.subscription_tier || 'free';
+          profileUpdate.notes_usage_count = data.notes_usage_count || 0;
+          profileUpdate.current_period_end = data.current_period_end;
       } else if (meta && meta.full_name) {
           profileUpdate.fullName = meta.full_name;
       }
@@ -490,7 +582,7 @@ const App: React.FC = () => {
  const fetchHistory = async (userId: string) => {
   try {
     const { data, error } = await supabase
-      .from('historical_notes')
+      .from('usage_logs') 
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
@@ -503,7 +595,7 @@ const App: React.FC = () => {
       const loadedHistory: HistoricalNote[] = data.map((item: any) => ({
         id: item.id,
         timestamp: new Date(item.created_at).getTime(),
-        note: item.content,
+        note: 'Contenido no disponible (Privacidad)', 
         context: {
           age: item.patient_age ?? '',
           sex: item.patient_sex ?? '',
@@ -528,6 +620,10 @@ const App: React.FC = () => {
               specialty: newProfile.specialty, country: newProfile.country, language: newProfile.language, title: newProfile.title, full_name: newProfile.fullName, theme: newProfile.theme
           }).eq('id', session.user.id); 
       }
+  };
+
+  const handleSubscriptionPlanSelect = (planId: string) => {
+      alert("¡Gracias por tu interés! \n\nEl módulo de pagos automáticos estará disponible pronto.\n\nPara activar este plan ahora, por favor contacta a soporte o administración directamente desde la plataforma.");
   };
 
   const performLogout = async () => { 
@@ -654,13 +750,14 @@ const App: React.FC = () => {
   const handleRemoveFile = (id: string) => setUploadedFiles(prev => prev.filter(f => f.id !== id));
 
   const handleGenerateNote = async () => {
-      // VALIDACIÓN NUEVA: Modal personalizado si faltan datos
       if (!context.age || !context.sex) {
         setShowMissingDataModal(true);
         return;
       }
+      
+      const hasAccess = await verifyQuotaAccess();
+      if (!hasAccess) return;
 
-      // AUTO STOP: Si está grabando, detener y usar el audio capturado
       if (isRecording) {
         isUserStoppingRef.current = true;
         if (recognitionRef.current) recognitionRef.current.stop();
@@ -744,29 +841,28 @@ const App: React.FC = () => {
           if (session?.user) {
               const cleanNote = fullText.includes(alertsStartMarker) ? fullText.split(alertsStartMarker)[0].trim() : fullText.replace(RE_ORPHAN_JSON_ARRAY, '').trim();
               
-              const { data: insertedData, error: insertError } = await supabase
-                .from('historical_notes')
-                 .insert({
-                 user_id: session.user.id,
-                 content: cleanNote,
-                 patient_age: context.age,
-                patient_sex: context.sex
-                 })
-                .select()
-                 .single();
-
+              await registerUsage(session.user.id, 'note', 'gemini-2.5-flash', context.age, context.sex);
               
-              if (insertedData && !insertError) {
-                  const newNote: HistoricalNote = {
-                      id: insertedData.id,
-                      timestamp: new Date(insertedData.created_at).getTime(), 
-                      note: cleanNote,
-                      context: { age: insertedData.patient_age || context.age, sex: insertedData.patient_sex || context.sex, modality: insertedData.modality || context.modality, additionalContext: "" },
-                      profile: { ...profile },
-                      alerts: alerts.length > 0 ? alerts : [] 
-                  };
-                  setHistory(prev => [newNote, ...prev.filter(n => n.id !== newNote.id)]);
-              }
+              await refreshQuota(session.user.id); 
+
+              const tempId = Math.random().toString(36).substring(7);
+              
+              const newNote: HistoricalNote = {
+                  id: tempId,
+                  timestamp: Date.now(),
+                  note: cleanNote,
+                  context: { 
+                      age: context.age, 
+                      sex: context.sex, 
+                      modality: context.modality, 
+                      additionalContext: "" 
+                  },
+                  profile: { ...profile },
+                  alerts: alerts.length > 0 ? alerts : [] 
+              };
+
+              setProfile(prev => ({...prev, notes_usage_count: (prev.notes_usage_count || 0) + 1}));
+              setHistory(prev => [newNote, ...prev]);
           }
       } catch (error: any) { 
           if (error.name !== 'AbortError' && !controller.signal.aborted) { setGeneratedNote(prev => prev + `\n\n❌ ${parseAndHandleGeminiError(error, t('error_generating_note'))}`); }
@@ -804,7 +900,7 @@ const App: React.FC = () => {
       if (confirmModal?.type === 'logout') { performLogout(); }
       else if (confirmModal?.type === 'clear_history') { 
         if (session?.user) {
-            const { error } = await supabase.from('historical_notes').delete().eq('user_id', session.user.id);
+            const { error } = await supabase.from('usage_logs').delete().eq('user_id', session.user.id);
             if (error) console.error("Error deleting history:", error);
         }
         setHistory([]); 
@@ -815,7 +911,7 @@ const App: React.FC = () => {
       else if (confirmModal?.type === 'delete_note' && confirmModal.itemId) { 
           setHistory(prev => prev.filter(n => n.id !== confirmModal.itemId)); 
           if (viewingHistoryNoteId === confirmModal.itemId) { setGeneratedNote(''); setAlerts([]); setViewingHistoryNoteId(null); }
-          await supabase.from('historical_notes').delete().eq('id', confirmModal.itemId);
+          await supabase.from('usage_logs').delete().eq('id', confirmModal.itemId);
       }
       setConfirmModal({ isOpen: false, type: null });
   };
@@ -849,10 +945,20 @@ const App: React.FC = () => {
       setSuggestedQuestions([]); setUploadedFiles([]); scrollToTop();
       setAutoSuggestEnabled(false); 
       audioRecorder.resetRecording(); 
+      
+      // CERRAR MENÚ EN MÓVIL
+      if (isMobile) {
+        setIsSidebarOpen(false);
+      }
   };
 
+  // --- EXPORTAR A PDF CORREGIDO ---
   const exportToPDF = () => { 
       if (!generatedNote) return; 
+      
+      // LIMPIAR EMOJIS Y MARKDOWN ANTES DE GENERAR PDF
+      const textToPrint = cleanTextForExport(generatedNote);
+
       const doc = new jspdf.jsPDF(); 
       const margin = 15;
       const pageHeight = doc.internal.pageSize.height;
@@ -868,8 +974,8 @@ const App: React.FC = () => {
       doc.setDrawColor(200); doc.line(margin, cursorY, pageWidth - margin, cursorY); cursorY += 10;
 
       doc.setFontSize(11);
-      const cleanText = generatedNote.replace(RE_BOLD_MARKDOWN, '$1');
-      const splitText = doc.splitTextToSize(cleanText, contentWidth);
+      
+      const splitText = doc.splitTextToSize(textToPrint, contentWidth);
       
       splitText.forEach((line: string) => {
           if (cursorY > pageHeight - margin) { doc.addPage(); cursorY = 20; }
@@ -881,15 +987,66 @@ const App: React.FC = () => {
           doc.setFontSize(14); doc.setTextColor(220, 38, 38); doc.text(t('pdf_alerts_title'), margin, cursorY); doc.setTextColor(0); cursorY += 10;
           alerts.forEach(alert => { 
               if (cursorY > pageHeight - 40) { doc.addPage(); cursorY = 20; }
+              const cleanDetails = cleanTextForExport(alert.details);
               doc.setFontSize(12); doc.setFont(undefined, 'bold'); doc.text(`${alert.type} (${alert.severity})`, margin, cursorY); cursorY += 6; 
               doc.setFont(undefined, 'normal'); doc.text(alert.title, margin, cursorY); cursorY += 6; 
-              const details = doc.splitTextToSize(alert.details, contentWidth); doc.text(details, margin, cursorY); cursorY += (details.length * 6) + 8; 
+              const details = doc.splitTextToSize(cleanDetails, contentWidth); doc.text(details, margin, cursorY); cursorY += (details.length * 6) + 8; 
           }); 
       } 
       doc.save('CliniScribe_Note.pdf'); 
   };
 
-  const handleExportWord = () => { if (!generatedNote) return; const cleanText = generatedNote.replace(RE_BOLD_MARKDOWN, '$1'); const locale = getDateLocale(); const dateStr = new Date().toLocaleDateString(locale); const fullHtml = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>CliniScribe</title></head><body style="font-family: Calibri, sans-serif;"><h1>CliniScribe - Borrador Clínico</h1><p>Generado el ${dateStr}</p><hr><pre style="white-space: pre-wrap; font-family: Calibri, sans-serif;">${cleanText}</pre></body></html>`; const blob = new Blob([fullHtml], { type: 'application/msword' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `ClinicalNote-${Date.now()}.doc`; document.body.appendChild(link); link.click(); document.body.removeChild(link); };
+  // --- EXPORTAR A WORD CORREGIDO ---
+  const handleExportWord = () => { 
+    if (!generatedNote) return; 
+    
+    // 1. Limpiar Emojis PRIMERO para que Word no se confunda con caracteres unicode
+    let cleanContent = generatedNote.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1F018}-\u{1F270}\u{2328}\u{231A}\u{231B}]/gu, '');
+
+    // 2. Convertir Markdown a HTML válido
+    let htmlContent = cleanContent
+        // Escapar caracteres HTML básicos
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        // Títulos (## Titulo) -> <h3>Titulo</h3>
+        .replace(/^##\s+(.*$)/gim, '<h3 style="font-family: Calibri; color:#1155cc; margin-top:20px; margin-bottom: 10px;">$1</h3>')
+        // Negritas (**texto**) -> <b>texto</b>
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        // Listas (- item) -> <li>item</li> (simple)
+        .replace(/^- (.*$)/gim, '<li>$1</li>')
+        // Saltos de línea
+        .replace(/\n/g, '<br/>');
+
+    const locale = getDateLocale(); 
+    const dateStr = new Date().toLocaleDateString(locale); 
+    
+    const fullHtml = `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head>
+            <meta charset='utf-8'>
+            <title>CliniScribe</title>
+            <style>
+                body { font-family: 'Calibri', sans-serif; font-size: 11pt; line-height: 1.5; }
+                h3 { border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+            </style>
+        </head>
+        <body>
+            <h1 style="color:#333;">CliniScribe - Nota Clínica</h1>
+            <p style="color:#666; font-size: 10pt;">Generado el ${dateStr} - Paciente: ${context.age} años</p>
+            <hr>
+            ${htmlContent}
+            <br><br>
+            <p style="font-size: 9pt; color: #999;">Documento generado automáticamente. Requiere validación médica.</p>
+        </body>
+        </html>`; 
+    
+    const blob = new Blob([fullHtml], { type: 'application/msword' }); 
+    const link = document.createElement('a'); 
+    link.href = URL.createObjectURL(blob); 
+    link.download = `CliniScribe-${Date.now()}.doc`; 
+    document.body.appendChild(link); 
+    link.click(); 
+    document.body.removeChild(link); 
+};
 
   if (authLoading) return <div className="min-h-screen bg-slate-50 dark:bg-[#020617] flex items-center justify-center"><SpinnerIcon className="h-8 w-8 text-sky-500 animate-spin" /></div>;
   if (!isSupabaseConfigured) return <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center text-center p-6 text-white"><AlertTriangleIcon className="h-12 w-12 text-rose-500 mb-4" /><h2>Error Config</h2></div>;
@@ -898,128 +1055,163 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen supports-[height:100dvh]:h-[100dvh] bg-slate-50 dark:bg-[#0f1115] text-slate-800 dark:text-slate-200 font-sans overflow-hidden transition-colors duration-300">
         <aside className={`flex-shrink-0 overflow-hidden bg-white dark:bg-[#02040a] border-r border-slate-200 dark:border-white/5 flex flex-col transition-all duration-300 fixed md:relative z-[100] h-full ${isSidebarOpen ? 'w-72 translate-x-0 shadow-2xl md:shadow-none' : '-translate-x-full md:w-0 md:translate-x-0'}`}>
-         {/* ... Contenido del Sidebar sin cambios ... */}
-         <div className="p-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-2">
-                 <div className="bg-gradient-to-br from-sky-500 to-indigo-600 p-1.5 rounded-lg">
-                    <QuillIcon className="h-4 w-4 text-white" />
-                 </div>
-                 <h1 className="font-bold tracking-tight text-slate-900 dark:text-white text-sm">{t('sidebar_clinicsribe')}</h1>
+            
+            {/* 1. HEADER SIDEBAR */}
+            <div className="p-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between shrink-0 h-14 bg-white dark:bg-[#02040a] z-40">
+                <div className="flex items-center gap-2">
+                        <div className="bg-gradient-to-br from-sky-500 to-indigo-600 p-1.5 rounded-lg shadow-sm">
+                        <QuillIcon className="h-4 w-4 text-white" />
+                        </div>
+                        <h1 className="font-bold tracking-tight text-slate-900 dark:text-white text-sm">{t('sidebar_clinicsribe')}</h1>
+                </div>
+                <button onClick={() => setIsSidebarOpen(false)} className="md:hidden p-2 text-slate-500 hover:text-slate-800">
+                    <ChevronLeftIcon className="h-5 w-5" />
+                </button>
             </div>
-            <button onClick={() => setIsSidebarOpen(false)} className="md:hidden p-2 text-slate-500">
-                <ChevronLeftIcon className="h-5 w-5" />
-            </button>
-         </div>
 
-         <div className="flex-grow flex flex-col min-h-0">
-             <div className="p-3 pb-0 shrink-0">
-                 <div className="relative group"> 
-                    <button onClick={handleNewNote} className="w-full py-3 px-4 rounded-xl bg-slate-100 dark:bg-slate-900/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-white/5 flex items-center gap-3 text-sm font-medium text-slate-700 dark:text-slate-300 transition group shadow-sm">
-                        <div className="bg-white dark:bg-slate-800 p-1.5 rounded-lg group-hover:scale-110 transition-transform"><SparklesIcon className="h-4 w-4 text-sky-500"/></div>
+            {/* 2. BODY SIDEBAR */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col relative">
+                
+                {/* A. BOTÓN NUEVA NOTA */}
+                <div className="p-3 pb-2 sticky top-0 bg-white dark:bg-[#02040a] z-30 shadow-[0_4px_10px_-4px_rgba(0,0,0,0.05)] dark:shadow-none">
+                    <button onClick={handleNewNote} className="w-full py-2.5 px-4 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:opacity-90 shadow-md hover:shadow-lg flex items-center justify-center gap-2 text-sm font-bold transition-all group">
+                        <SparklesIcon className="h-4 w-4 text-sky-400 dark:text-sky-600"/>
                         <span>{t('new_note_button')}</span>
                     </button>
-                 </div>
-             </div>
+                </div>
+                
+                {/* B. MENÚ DE HERRAMIENTAS */}
+                <div className="px-3 py-2 z-10">
+                    <h3 className="px-2 mb-2 text-[10px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-widest">
+                        {t('tools_label')}
+                    </h3>
+                    <ToolsMenu 
+                        onSelectTool={handleToolSelect} 
+                        variant="sidebar"
+                        userTier={profile.subscription_tier}
+                        onUpgradeRequest={() => { 
+                            setProfileTab('subscription'); 
+                            setShowProfile(true); 
+                        }}
+                        t={t}
+                    />
+                </div>
 
-             <div className="flex-grow overflow-y-auto custom-scrollbar p-3 space-y-2">
-                <div className="px-2 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-2">{t('history_title')}</div>
-                {history.length === 0 ? (
-                    <div className="text-center py-10 text-slate-400 dark:text-slate-600 text-xs">{t('history_empty_title')}</div>
-                ) : (
-                    history.map(note => (
-                        <div key={note.id} onClick={() => loadHistoryNote(note)}
-                            className={`relative p-3 rounded-lg cursor-pointer text-xs group transition-all border border-transparent ${viewingHistoryNoteId === note.id ? 'bg-sky-50 dark:bg-sky-950/30 border-sky-200 dark:border-sky-500/30 text-sky-700 dark:text-sky-100' : 'hover:bg-slate-100 dark:hover:bg-white/5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}>
-                            <div className="flex justify-between items-start pr-2">
-                                <span className="font-semibold truncate">{note.context.age} {t('pdf_years')}, {renderSex(note.context.sex)}</span>
+                <div className="border-t border-slate-100 dark:border-white/5 mx-4 my-2 z-10"></div>
+
+                {/* C. HISTORIAL DE SESIÓN */}
+                <div className="px-3 pb-4 z-10">
+                    <div className="flex items-center justify-between px-2 mb-2 mt-2">
+                        <span className="text-[10px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-widest">
+                            {t('history_title')}
+                        </span>
+                        {history.length > 0 && (
+                            <div className="relative group">
+                                <button onClick={handleClearHistory} className="text-[10px] font-bold text-rose-500 hover:text-rose-600 transition-colors">
+                                    {t('clear_all_history')}
+                                </button>
+                                {/* Tooltip Clear History */}
+                                <div className="absolute bottom-full right-0 mb-2 w-max px-3 py-2 bg-[#0f172a] border border-slate-700 text-white text-[10px] font-bold tracking-wide rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[110] whitespace-nowrap">
+                                    {t('tooltip_clear_history')}
+                                    <div className="absolute top-full right-4 border-4 border-transparent border-t-[#0f172a]"></div>
+                                </div>
                             </div>
-                            <div className="flex justify-between mt-1 opacity-70">
-                                <span className="truncate max-w-[100px]">{note.profile.specialty}</span>
-                                <span className="text-[10px]">{new Date(note.timestamp).toLocaleDateString(getDateLocale(), {month:'short', day:'numeric'})}</span>
-                            </div>
-                             
-                             <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
-                                 <div className="relative group/btn">
-                                     <button onClick={(e) => handleDeleteNote(e, note.id)} className="text-slate-300 hover:text-rose-500 p-1.5 rounded-full hover:bg-rose-50 dark:hover:bg-rose-900/20 transition">
-                                         <TrashIcon className="h-3.5 w-3.5"/>
-                                     </button>
-                                     <div className="absolute right-full top-1/2 -translate-y-1/2 mr-2 w-max px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover/btn:opacity-100 transition-opacity pointer-events-none whitespace-nowrap hidden group-hover/btn:block">
-                                         {t('tooltip_delete_note')}
-                                     </div>
-                                 </div>
-                             </div>
-                        </div>
-                    ))
-                )}
-             </div>
-
-             {history.length > 0 && (
-                 <div className="p-3 pt-2 shrink-0 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-transparent backdrop-blur-sm">
-                    <div className="relative group">
-                        <button onClick={handleClearHistory} className="w-full py-2.5 text-[10px] font-bold uppercase tracking-wide text-slate-400 hover:text-rose-500 border border-slate-200 dark:border-white/5 hover:border-rose-200 dark:hover:border-rose-900/30 rounded-lg transition-colors bg-white dark:bg-slate-900/50">
-                            {t('clear_all_history')}
-                        </button>
-                        <div className="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
-                            {t('tooltip_clear_history')}
-                        </div>
-                    </div>
-                 </div>
-             )}
-         </div>
-
-         <div className="p-4 border-t border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-[#02040a] shrink-0 flex items-center gap-2">
-            <div className="flex-1 min-w-0 relative group">
-                <button 
-                    onClick={() => { setEditingProfile({...profile}); setShowProfile(true); }} 
-                    className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-slate-200 dark:hover:bg-white/5 transition-colors text-left"
-                >
-                    <div className="w-9 h-9 rounded-full overflow-hidden border border-slate-200 dark:border-white/10 shrink-0 bg-sky-100 dark:bg-sky-900/50 flex items-center justify-center relative shadow-sm">
-                        <div className="absolute inset-0 flex items-center justify-center">
-                             {profile.fullName ? (
-                                 <span className="text-xs font-bold text-sky-600 dark:text-sky-400">
-                                     {profile.fullName.charAt(0).toUpperCase()}
-                                 </span>
-                             ) : (
-                                 <UserIcon className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-                             )}
-                        </div>
-                        {session?.user?.user_metadata?.avatar_url && (
-                            <img 
-                                src={session.user.user_metadata.avatar_url} 
-                                alt="Avatar" 
-                                className="w-full h-full object-cover relative z-10" 
-                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                            />
                         )}
                     </div>
-                    
-                    <div className="flex-1 min-w-0 flex flex-col justify-center">
-                        <span className="text-sm font-bold text-slate-700 dark:text-white truncate leading-tight">
-                            {profile.title || 'Dr.'} {profile.fullName?.split(' ')[0] || 'Usuario'}
-                        </span>
-                        <div className="flex items-center gap-1.5 mt-0.5 opacity-80">
-                            <span className="text-[10px] text-slate-500 font-medium">{t('settings_label')}</span>
-                            {profile.country && (
-                                <span className="text-[9px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 rounded-full text-slate-500 truncate max-w-[80px]">
-                                    {profile.country === 'Chile' && '🇨🇱 Chile'}
-                                    {profile.country !== 'Chile' && profile.country}
-                                </span>
+
+                    <div className="space-y-1.5">
+                        {history.length === 0 ? (
+                            <div className="text-center py-8 border-2 border-dashed border-slate-100 dark:border-white/5 rounded-xl">
+                                <p className="text-xs text-slate-400 dark:text-slate-600 font-medium">{t('history_empty_title')}</p>
+                            </div>
+                        ) : (
+                            history.map(note => (
+                                <div key={note.id} onClick={() => loadHistoryNote(note)}
+                                    className={`relative p-3 rounded-xl cursor-pointer text-xs group transition-all border ${viewingHistoryNoteId === note.id ? 'bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800 text-sky-800 dark:text-sky-200' : 'bg-transparent border-transparent hover:bg-slate-50 dark:hover:bg-white/5 text-slate-600 dark:text-slate-400'}`}>
+                                    
+                                    {/* CONTENEDOR DE TEXTO CON PADDING PARA EVITAR SOLAPAMIENTO */}
+                                    <div className="pr-7">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="font-bold truncate">{note.context.age} {t('pdf_years')}, {renderSex(note.context.sex).charAt(0)}</span>
+                                            <span className="text-[10px] opacity-70">{new Date(note.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                        </div>
+                                        <div className="opacity-80 truncate text-[10px]">
+                                            {note.profile.specialty}
+                                        </div>
+                                    </div>
+                                        
+                                    {/* Botón borrar nota individual + Tooltip Custom ARREGLADO (Sobre el icono) */}
+                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all z-20">
+                                        <div className="relative group/delete">
+                                            <button 
+                                                onClick={(e) => handleDeleteNote(e, note.id)} 
+                                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30"
+                                            >
+                                                <TrashIcon className="h-3.5 w-3.5"/>
+                                            </button>
+                                            {/* Tooltip posicionada ARRIBA (bottom-full) y centrada */}
+                                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-[#0f172a] border border-slate-700 text-white text-[9px] font-bold rounded-lg shadow-xl opacity-0 group-hover/delete:opacity-100 transition-opacity pointer-events-none z-[110]">
+                                                {t('tooltip_delete_note')}
+                                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#0f172a]"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* 3. FOOTER PROFILE - SEPARATED BUTTONS */}
+            <div className="p-3 border-t border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-[#02040a] shrink-0 z-40 flex gap-1">
+                {/* BOTÓN PERFIL */}
+                <button 
+                    onClick={() => { setEditingProfile({...profile}); setProfileTab('subscription'); setShowProfile(true); }} 
+                    className="flex-1 flex items-center gap-3 p-2 rounded-xl hover:bg-slate-200 dark:hover:bg-white/5 transition-colors text-left group relative"
+                >
+                    {/* Tooltip Perfil */}
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-3 py-2 bg-[#0f172a] border border-slate-700 text-white text-[10px] font-bold tracking-wide rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[100]">
+                        {t('tooltip_profile')}
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#0f172a]"></div>
+                    </div>
+
+                    <div className="w-8 h-8 rounded-lg bg-sky-100 dark:bg-sky-900/50 flex items-center justify-center border border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-300 font-bold text-xs relative overflow-hidden shrink-0">
+                            {session?.user?.user_metadata?.avatar_url ? (
+                                <img src={session.user.user_metadata.avatar_url} className="w-full h-full object-cover" />
+                            ) : (
+                                profile.fullName?.charAt(0) || <UserIcon className="h-4 w-4"/>
                             )}
-                        </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">
+                            {profile.fullName || 'Doctor'}
+                        </p>
+                        <p className="text-[10px] text-slate-500 truncate flex items-center gap-1">
+                        {profile.subscription_tier === 'pro' ? '⭐ Plan MAX' : profile.subscription_tier === 'basic' ? '⚡ Profesional' : 'Plan Gratuito'}
+                        </p>
+                    </div>
+                </button>
+
+                {/* BOTÓN LOGOUT (SEPARADO) */}
+                <button 
+                    onClick={handleLogoutClick}
+                    className="p-2 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-900/20 text-slate-400 hover:text-rose-500 transition-colors relative group/logout shrink-0 flex items-center justify-center"
+                >
+                    <LogOutIcon className="h-5 w-5" />
+                    {/* Tooltip Logout */}
+                    <div className="absolute bottom-full right-0 mb-2 w-max px-3 py-2 bg-[#0f172a] border border-slate-700 text-white text-[10px] font-bold tracking-wide rounded-xl shadow-2xl opacity-0 group-hover/logout:opacity-100 transition-opacity pointer-events-none z-[100]">
+                        {t('tooltip_logout')}
+                        <div className="absolute top-full right-4 border-4 border-transparent border-t-[#0f172a]"></div>
                     </div>
                 </button>
             </div>
-            
-            <div className="shrink-0 relative group">
-                <button onClick={handleLogoutClick} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-slate-200 dark:hover:bg-white/5 rounded-lg transition-colors">
-                    <LogOutIcon className="h-5 w-5" />
-                </button>
-            </div>
-         </div>
-      </aside>
+        </aside>
 
       {isSidebarOpen && <div className="fixed inset-0 bg-black/50 z-[90] md:hidden" onClick={() => setIsSidebarOpen(false)}></div>}
 
       <main className="flex-1 flex flex-col relative h-full min-w-0 bg-white dark:bg-[#0f1115]">
+        {/* ... Resto del componente main sin cambios ... */}
         {!isSidebarOpen && (
             <button onClick={() => setIsSidebarOpen(true)} className="absolute top-4 left-4 z-30 p-2 rounded-lg bg-white/80 dark:bg-black/50 text-slate-600 dark:text-slate-400 hover:text-sky-500 shadow-sm border border-slate-200 dark:border-transparent md:hidden">
                 <NotesIcon className="h-5 w-5" />
@@ -1028,9 +1220,9 @@ const App: React.FC = () => {
 
         <header className="h-14 shrink-0 flex items-center justify-between px-6 border-b border-slate-100 dark:border-white/5 bg-white/80 dark:bg-[#0f1115]/90 backdrop-blur z-10 gap-2">
              
-             {/* HEADER IZQUIERDA: Hub de Herramientas (SIEMPRE VISIBLE) */}
+             {/* HEADER IZQUIERDA: Herramientas removidas de aquí, ahora en sidebar */}
              <div className="flex items-center gap-2">
-                 <ToolsMenu onSelectTool={handleToolSelect} variant="header" />
+                 {/* Espacio reservado para futuro título o breadcrumbs */}
              </div>
 
              {/* HEADER DERECHA: Contextual (Tips/Tutorial O Exportar) */}
@@ -1048,16 +1240,7 @@ const App: React.FC = () => {
                                 <span className="hidden sm:inline">Tip Productividad</span>
                             </button>
                         </div>
-
-                        <div className="relative group">
-                            <button 
-                                onClick={() => setShowTutorial(true)} 
-                                className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition animate-in fade-in"
-                            >
-                                <VideoIcon className="h-3.5 w-3.5" /> 
-                                {t('tutorial_button') || 'Tutorial'}
-                            </button>
-                        </div>
+                        {/* BOTÓN TUTORIAL ELIMINADO */}
                     </>
                 )}
 
@@ -1065,7 +1248,13 @@ const App: React.FC = () => {
                 {generatedNote && (
                     <>
                         <div className="relative group">
-                            <button onClick={() => navigator.clipboard.writeText(generatedNote.replace(/\*\*/g, ''))} className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition"><CopyIcon className="h-3 w-3"/> <span className="hidden sm:inline">{t('copy_button_title')}</span></button>
+                            <button 
+                                onClick={() => navigator.clipboard.writeText(cleanTextForExport(generatedNote))} 
+                                className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 transition"
+                            >
+                                <CopyIcon className="h-3 w-3"/> 
+                                <span className="hidden sm:inline">{t('copy_button_title')}</span>
+                            </button>
                         </div>
                         
                         <div className="relative group">
@@ -1163,14 +1352,14 @@ const App: React.FC = () => {
                     )}
 
                     <div className={`bg-white dark:bg-[#1e1f20] border border-slate-200 dark:border-white/10 shadow-2xl shadow-slate-200/50 dark:shadow-black/50 transition-all duration-300 flex flex-col rounded-3xl ${isRecording ? 'ring-2 ring-emerald-500/50' : 'focus-within:ring-2 focus-within:ring-sky-500/50'}`}>
-                        
+                        {/* ... Input Bars ... */}
                         <div className="flex items-center gap-2 px-2 sm:px-4 pt-3 pb-1 shrink-0 relative z-20">
                             <div className="relative group">
                                 <input type="number" value={context.age} onChange={(e) => setContext({...context, age: e.target.value})} 
                                     placeholder={t('patient_age')}
                                     className="w-20 bg-slate-100 dark:bg-black/30 text-slate-800 dark:text-white text-xs px-3 py-1.5 rounded-full border border-transparent focus:border-sky-500 outline-none text-center placeholder-slate-400"
                                 />
-                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[70] whitespace-nowrap">
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-3 py-2 bg-[#0f172a] border border-slate-700 text-white text-[10px] font-bold tracking-wide rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[70] whitespace-nowrap">
                                     {t('tooltip_patient_age')}
                                 </div>
                             </div>
@@ -1184,7 +1373,7 @@ const App: React.FC = () => {
                                     <option value="other">{t('sex_other')}</option>
                                 </select>
                                 <ChevronLeftIcon className="h-3 w-3 text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 -rotate-90 pointer-events-none"/>
-                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[70] whitespace-nowrap">
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-3 py-2 bg-[#0f172a] border border-slate-700 text-white text-[10px] font-bold tracking-wide rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[70] whitespace-nowrap">
                                     {t('tooltip_patient_sex')}
                                 </div>
                             </div>
@@ -1198,7 +1387,7 @@ const App: React.FC = () => {
                                     <VideoIcon className="h-3 w-3" />
                                     <span className="hidden md:inline">{t('modality_telemedicine_short')}</span>
                                 </button>
-                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[70] whitespace-nowrap">
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-3 py-2 bg-[#0f172a] border border-slate-700 text-white text-[10px] font-bold tracking-wide rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[70] whitespace-nowrap">
                                     {t('modality_label')}
                                 </div>
                             </div>
@@ -1242,7 +1431,7 @@ const App: React.FC = () => {
                                         <span className="sr-only">{t('file_upload_label')}</span>
                                         {uploadedFiles.length > 0 && <span className="text-[10px] font-bold">{uploadedFiles.length}</span>}
                                     </button>
-                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[70] whitespace-nowrap">
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-3 py-2 bg-[#0f172a] border border-slate-700 text-white text-[10px] font-bold tracking-wide rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[70] whitespace-nowrap">
                                         {t('tooltip_attach_files')}
                                     </div>
                                 </div>
@@ -1265,7 +1454,7 @@ const App: React.FC = () => {
                                             )}
                                         </button>
                                         
-                                        <div className="absolute bottom-full right-0 mb-2 w-max max-w-[calc(100vw-2rem)] px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-normal text-right">
+                                        <div className="absolute bottom-full right-0 mb-2 w-max max-w-[calc(100vw-2rem)] px-3 py-2 bg-[#0f172a] border border-slate-700 text-white text-[10px] font-bold tracking-wide rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-normal text-right">
                                             {autoSuggestEnabled 
                                                 ? (isSuggesting ? t('suggesting_loading') : t('copilot_active')) 
                                                 : t('suggest_questions_tooltip')
@@ -1310,7 +1499,7 @@ const App: React.FC = () => {
                                             </div>
                                         ) : <MicrophoneIcon className="h-5 w-5" />}
                                     </button>
-                                    <div className="absolute bottom-full right-0 mb-2 w-max max-w-[calc(100vw-2rem)] px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-normal text-right">
+                                    <div className="absolute bottom-full right-0 mb-2 w-max max-w-[calc(100vw-2rem)] px-3 py-2 bg-[#0f172a] border border-slate-700 text-white text-[10px] font-bold tracking-wide rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-normal text-right">
                                         {isRecording ? t('stop_transcribing_tooltip') : t('start_transcribing_tooltip')}
                                     </div>
                                 </div>
@@ -1321,7 +1510,7 @@ const App: React.FC = () => {
                                         <button onClick={handleStopGeneration} className="p-2 sm:p-3 rounded-xl bg-rose-600 text-white shadow-lg shadow-rose-500/20 hover:bg-rose-50 transition-all transform active:scale-95">
                                             <StopIcon className="h-5 w-5 fill-current" />
                                         </button>
-                                        <div className="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
+                                        <div className="absolute bottom-full right-0 mb-2 w-max px-3 py-2 bg-[#0f172a] border border-slate-700 text-white text-[10px] font-bold tracking-wide rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
                                             {t('stop_generation_tooltip')}
                                         </div>
                                     </div>
@@ -1335,7 +1524,7 @@ const App: React.FC = () => {
                                                 {t('generate_disabled_tooltip')}
                                             </div>
                                         ) : (
-                                            <div className="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
+                                            <div className="absolute bottom-full right-0 mb-2 w-max px-3 py-2 bg-[#0f172a] border border-slate-700 text-white text-[10px] font-bold tracking-wide rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
                                                 {t('tooltip_generate_active')}
                                             </div>
                                         )}
@@ -1360,92 +1549,122 @@ const App: React.FC = () => {
                  <div className="mx-auto w-12 h-12 bg-sky-100 dark:bg-sky-900/30 rounded-full flex items-center justify-center mb-4 text-sky-600 dark:text-sky-400">
                      <UserIcon className="h-6 w-6" />
                  </div>
-                 <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Faltan Datos del Paciente</h3>
+                 <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{t('missing_data_title')}</h3>
                  <p className="text-center font-medium text-slate-600 dark:text-slate-300 text-sm mb-6 leading-relaxed">
-                     Para generar la nota clínica, es necesario ingresar la <strong>Edad</strong> y el <strong>Sexo</strong> del paciente en la barra inferior.
+                     <span dangerouslySetInnerHTML={{ __html: t('missing_data_desc').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
                  </p>
                  <button 
                     onClick={() => setShowMissingDataModal(false)} 
                     className="w-full px-5 py-3 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-sm font-bold shadow-lg shadow-sky-500/20 transition-transform active:scale-95"
                  >
-                     Entendido
+                     {t('understood_button')}
                  </button>
              </div>
          </div>
       )}
 
-      {/* ... (Otros modales existentes: Perfil, Tutorial, SplitTip, Confirm) sin cambios ... */}
+      {/* --- MODAL DE PERFIL --- */}
       {showProfile && (
          <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowProfile(false)}>
-            <div className="bg-white dark:bg-[#0f172a] w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 relative" onClick={e => e.stopPropagation()}>
-                <button onClick={() => setShowProfile(false)} className="absolute right-4 top-4 text-slate-400 hover:text-slate-900 dark:hover:text-white"><XIcon className="h-5 w-5"/></button>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-6">{t('profile_title')}</h2>
-                {/* Contenido Perfil ... (Igual que antes) */}
-                <div className="space-y-5">
-                    <div className="grid grid-cols-3 gap-4">
-                        <div className="col-span-1">
-                             <label className="text-xs text-slate-500 uppercase font-bold">Título</label>
-                             <select value={editingProfile.title || 'Dr.'} onChange={(e) => setEditingProfile({...editingProfile, title: e.target.value})} className="w-full mt-2 bg-slate-100 dark:bg-black/30 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white outline-none">
-                                 <option value="Dr.">Dr.</option>
-                                 <option value="Dra.">Dra.</option>
-                                 <option value="Sr.">Sr.</option>
-                                 <option value="Sra.">Sra.</option>
-                             </select>
-                        </div>
-                        <div className="col-span-2">
-                             <label className="text-xs text-slate-500 uppercase font-bold">Nombre Completo</label>
-                             <input type="text" value={editingProfile.fullName || ''} onChange={(e) => setEditingProfile({...editingProfile, fullName: e.target.value})} placeholder="Ej: Juan Pérez" className="w-full mt-2 bg-slate-100 dark:bg-black/30 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-slate-900 dark:text-white outline-none" />
-                        </div>
+            <div className="bg-white dark:bg-[#0f172a] w-full max-w-4xl rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden relative flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+                
+                {/* Header Modal */}
+                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg text-indigo-600 dark:text-indigo-400"><UserIcon className="h-5 w-5"/></div>
+                        <h2 className="text-xl font-bold text-slate-900 dark:text-white">Mi Cuenta</h2>
                     </div>
-                    <div>
-                        <label className="text-xs text-slate-500 uppercase font-bold">{t('profile_specialty')}</label>
-                        <select value="Médico General / Familia" disabled className="w-full mt-2 bg-slate-100 dark:bg-black/30 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-slate-500 dark:text-slate-400 outline-none cursor-not-allowed opacity-75">
-                             <option value="Médico General / Familia">Médico General / Familia</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="text-xs text-slate-500 uppercase font-bold">{t('profile_country')}</label>
-                        <select value="Chile" disabled className="w-full mt-2 bg-slate-100 dark:bg-black/30 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-slate-500 dark:text-slate-400 outline-none cursor-not-allowed opacity-75">
-                             <option value="Chile">🇨🇱 Chile (MINSAL/FONASA)</option>
-                        </select>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-xs text-slate-500 uppercase font-bold">{t('profile_language')}</label>
-                            <div className="flex gap-1 mt-2">
-                                {['es', 'en', 'pt'].map(lang => (
-                                    <button key={lang} onClick={() => setEditingProfile({...editingProfile, language: lang})} className={`flex-1 py-2 rounded-md border text-xs font-bold ${editingProfile.language === lang ? 'bg-sky-100 dark:bg-sky-600 border-sky-200 dark:border-sky-500 text-sky-700 dark:text-white' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500'}`}>{lang.toUpperCase()}</button>
-                                ))}
+                    <button onClick={() => setShowProfile(false)} className="text-slate-400 hover:text-slate-900 dark:hover:text-white transition"><XIcon className="h-5 w-5"/></button>
+                </div>
+
+                {/* TAB NAVIGATION (Inverted: Suscripción First) */}
+                <div className="flex border-b border-slate-100 dark:border-slate-800 px-6 gap-6">
+                    <button 
+                        onClick={() => setProfileTab('subscription')}
+                        className={`py-4 text-sm font-bold border-b-2 transition-colors ${profileTab === 'subscription' ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                    >
+                        Suscripción y Uso
+                    </button>
+                    <button 
+                        onClick={() => setProfileTab('profile')}
+                        className={`py-4 text-sm font-bold border-b-2 transition-colors ${profileTab === 'profile' ? 'border-sky-500 text-sky-600 dark:text-sky-400' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                    >
+                        Datos Personales
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                    
+                    {/* VISTA 1: DASHBOARD SUSCRIPCIÓN (Limpio y Modular) */}
+                    {profileTab === 'subscription' && (
+                        <SubscriptionDashboard 
+                            profile={profile}
+                            onSelectPlan={(planId) => handleSubscriptionPlanSelect(planId)}
+                        />
+                    )}
+
+                    {/* VISTA 2: DATOS PERSONALES (Secondary) */}
+                    {profileTab === 'profile' && (
+                        <div className="space-y-6 max-w-2xl mx-auto animate-in fade-in slide-in-from-right-4 duration-300">
+                            <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-4 border-b border-slate-100 dark:border-slate-800 pb-2">Información del Profesional</h3>
+                            
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className="col-span-1">
+                                     <label className="text-xs text-slate-500 uppercase font-bold">Título</label>
+                                     <select value={editingProfile.title || 'Dr.'} onChange={(e) => setEditingProfile({...editingProfile, title: e.target.value})} className="w-full mt-1 bg-slate-100 dark:bg-black/30 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-sky-500/50">
+                                         <option value="Dr.">Dr.</option>
+                                         <option value="Dra.">Dra.</option>
+                                         <option value="Sr.">Sr.</option>
+                                         <option value="Sra.">Sra.</option>
+                                     </select>
+                                </div>
+                                <div className="col-span-2">
+                                     <label className="text-xs text-slate-500 uppercase font-bold">Nombre</label>
+                                     <input type="text" value={editingProfile.fullName || ''} onChange={(e) => setEditingProfile({...editingProfile, fullName: e.target.value})} className="w-full mt-1 bg-slate-100 dark:bg-black/30 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-sky-500/50" />
+                                </div>
                             </div>
-                        </div>
-                        <div>
-                            <label className="text-xs text-slate-500 uppercase font-bold">Tema</label>
-                            <div className="flex gap-1 mt-2">
-                                <button onClick={() => setEditingProfile({...editingProfile, theme: 'light'})} className={`flex-1 py-2 rounded-md border flex items-center justify-center ${editingProfile.theme === 'light' ? 'bg-amber-100 border-amber-300 text-amber-700' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400'}`}><SunIcon className="h-4 w-4"/></button>
-                                <button onClick={() => setEditingProfile({...editingProfile, theme: 'dark'})} className={`flex-1 py-2 rounded-md border flex items-center justify-center ${editingProfile.theme === 'dark' ? 'bg-indigo-900 border-indigo-700 text-indigo-200' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400'}`}><MoonIcon className="h-4 w-4"/></button>
+
+                            <div>
+                                <label className="text-xs text-slate-500 uppercase font-bold">{t('profile_specialty')}</label>
+                                <select value="Médico General / Familia" disabled className="w-full mt-1 bg-slate-100 dark:bg-black/30 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm text-slate-500 dark:text-slate-400 outline-none cursor-not-allowed opacity-75">
+                                     <option value="Médico General / Familia">Médico General / Familia</option>
+                                </select>
                             </div>
+
+                            <div>
+                                <label className="text-xs text-slate-500 uppercase font-bold">{t('profile_country')}</label>
+                                <select value="Chile" disabled className="w-full mt-1 bg-slate-100 dark:bg-black/30 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm text-slate-500 dark:text-slate-400 outline-none cursor-not-allowed opacity-75">
+                                     <option value="Chile">🇨🇱 Chile (MINSAL/FONASA)</option>
+                                </select>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                                <div>
+                                    <label className="text-xs text-slate-500 uppercase font-bold">{t('profile_language')}</label>
+                                    <div className="flex gap-1 mt-1">
+                                        {['es', 'en', 'pt'].map(lang => (
+                                            <button key={lang} onClick={() => setEditingProfile({...editingProfile, language: lang})} className={`flex-1 py-2 rounded-md border text-xs font-bold transition-all ${editingProfile.language === lang ? 'bg-sky-600 border-sky-600 text-white' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500'}`}>{lang.toUpperCase()}</button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-xs text-slate-500 uppercase font-bold">Tema</label>
+                                    <div className="flex gap-1 mt-1">
+                                        <button onClick={() => setEditingProfile({...editingProfile, theme: 'light'})} className={`flex-1 py-2 rounded-md border flex items-center justify-center transition-all ${editingProfile.theme === 'light' ? 'bg-amber-100 border-amber-300 text-amber-700' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400'}`}><SunIcon className="h-4 w-4"/></button>
+                                        <button onClick={() => setEditingProfile({...editingProfile, theme: 'dark'})} className={`flex-1 py-2 rounded-md border flex items-center justify-center transition-all ${editingProfile.theme === 'dark' ? 'bg-indigo-900 border-indigo-700 text-indigo-200' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400'}`}><MoonIcon className="h-4 w-4"/></button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button onClick={() => { setProfile(editingProfile); saveProfileToDB(editingProfile); }} className="w-full py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold rounded-xl transition hover:opacity-90 shadow-lg mt-4">Guardar Cambios</button>
                         </div>
-                    </div>
-                    <div className="flex gap-3 mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
-                        <button onClick={() => setShowProfile(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition">{t('cancel_button')}</button>
-                        <button onClick={() => { setProfile(editingProfile); saveProfileToDB(editingProfile); setShowProfile(false); }} className="flex-1 py-3 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-lg transition shadow-lg shadow-sky-500/20">{t('profile_save_button')}</button>
-                    </div>
+                    )}
                 </div>
             </div>
          </div>
       )}
       
-      {showTutorial && (
-        <div className="fixed inset-0 z-[110] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300" onClick={() => setShowTutorial(false)}>
-            <div className="bg-black w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl border border-slate-800 relative" onClick={e => e.stopPropagation()}>
-                <button onClick={() => setShowTutorial(false)} className="absolute top-4 right-4 z-50 bg-black/50 hover:bg-white/20 text-white rounded-full p-2 backdrop-blur transition"><XIcon className="h-6 w-6" /></button>
-                <div className="aspect-video w-full bg-black flex items-center justify-center">
-                    <video controls autoPlay src={tutorialVideo} className="w-full h-full object-contain">Tu navegador no soporta el elemento de video.</video>
-                </div>
-                <div className="p-4 bg-[#0f172a] border-t border-slate-800"><h3 className="text-white font-bold text-lg">Tutorial CliniScribe</h3><p className="text-slate-400 text-sm">Aprende a sacar el máximo provecho a tus consultas.</p></div>
-            </div>
-        </div>
-      )}
+      {/* VENTANA MODAL DEL TUTORIAL HA SIDO ELIMINADA */}
       
       {showSplitTip && (
         <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowSplitTip(false)}>
@@ -1503,6 +1722,19 @@ const App: React.FC = () => {
             profile={profile}
         />
       )}
+
+      <LimitModal 
+        isOpen={showLimitModal} 
+        onClose={() => setShowLimitModal(false)}
+        tier={subscription.tier}
+        limit={subscription.limit}
+        onUpgrade={() => {
+            setShowLimitModal(false);
+            setProfileTab('subscription'); 
+            setShowProfile(true); 
+        }}
+        t={t}
+      />
     </div>
   );
 }

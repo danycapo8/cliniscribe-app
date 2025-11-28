@@ -3,28 +3,16 @@ export type Language = 'en' | 'es' | 'pt';
 
 // ARQUITECTO: Restringido estrictamente a Medicina General como solicitado.
 export const specialties: Record<Language, Record<string, string>> = {
-  en: { 
-      gp: 'General Practitioner'
-  },
-  es: { 
-      gp: 'Medicina General' 
-  },
-  pt: { 
-      gp: 'Clínico Geral'
-  },
+  en: { gp: 'General Practitioner' },
+  es: { gp: 'Medicina General' },
+  pt: { gp: 'Clínico Geral' },
 };
 
 // ARQUITECTO: Restringido estrictamente a Chile.
 export const countries: Record<Language, Record<string, string>> = {
-  en: { 
-      cl: 'Chile'
-  },
-  es: { 
-      cl: 'Chile'
-  },
-  pt: { 
-      cl: 'Chile'
-  },
+  en: { cl: 'Chile' },
+  es: { cl: 'Chile' },
+  pt: { cl: 'Chile' },
 };
 
 export const translations: Record<Language, Record<string, string>> = {
@@ -34,7 +22,7 @@ export const translations: Record<Language, Record<string, string>> = {
     field_reason: "Reason for Consultation",
     field_history: "Medical History",
     field_meds: "Current Medications",
-    field_allergies: "Alergias",
+    field_allergies: "Allergies",
     field_current_illness: "History of Present Illness",
     section_physical: "Physical Exam",
     field_general: "General/Skin",
@@ -75,6 +63,7 @@ export const translations: Record<Language, Record<string, string>> = {
     tooltip_profile: "Profile",
     tooltip_clear_history: "Clear History",
     tooltip_delete_note: "Delete",
+    tooltip_logout: "Logout",
     tooltip_clear_input: "Clear",
     tooltip_copy_note_text: "Copy",
     tooltip_export_pdf: "Export PDF",
@@ -84,7 +73,6 @@ export const translations: Record<Language, Record<string, string>> = {
     tooltip_patient_sex: "Sex",
     tooltip_modality_in_person: "In-Person",
     tooltip_modality_telemedicine: "Telemedicine",
-    // [NUEVO] Tooltips para sugerencias manuales
     suggest_questions_tooltip: "Suggest Questions",
     suggesting_loading: "Thinking...",
     copilot_active: "Copilot Active", 
@@ -95,15 +83,15 @@ export const translations: Record<Language, Record<string, string>> = {
     stop_generation_tooltip: "Stop Generation",
     tooltip_generate_active: "Generate Note",
     tooltip_attach: "Attach", 
-    listening_label: "LISTENING", // NUEVA: Estado de escucha activa
-    audio_transcribed_message: "✅ Audio transcribed. Press Generate note.", // NUEVA: Mensaje de éxito al detener
+    listening_label: "LISTENING",
+    audio_transcribed_message: "✅ Audio transcribed. Press Generate note.",
     
     // --- INPUT UI KEYS ---
     expand_input: "Expand",
     collapse_input: "Collapse",
     delete_all_input: "Clear",
     
-    // --- MISSING BUTTON KEYS FIXED ---
+    // --- BUTTON KEYS ---
     button_word: "Word",
     button_pdf: "PDF",
     button_tutorial: "Tutorial", 
@@ -136,7 +124,7 @@ export const translations: Record<Language, Record<string, string>> = {
     remove_file_aria: "Remove File",
     transcript_label: "Transcript",
     copy_button_title: "Copy",
-    transcript_placeholder: "✏️ Enter key findings/Physical Exam. (These will be combined with the audio for the note).", // ACTUALIZADO
+    transcript_placeholder: "✏️ Enter key findings/Physical Exam. (These will be combined with the audio for the note).",
     record_disabled_tooltip: "Enter Age/Sex",
     generate_disabled_tooltip: "Enter Context", 
     start_recording: "Transcribe",
@@ -163,7 +151,7 @@ export const translations: Record<Language, Record<string, string>> = {
     category_red_flag: "🚩 RED FLAG",
     category_examination: "Physical Exam",
     category_diagnostic: "Diagnosis",
-    category_management: "Management", // NUEVA: Gestión
+    category_management: "Management",
     error_fetching_suggestions: "Error fetching",
     tab_note: "Note",
     tab_history: "History",
@@ -199,11 +187,30 @@ export const translations: Record<Language, Record<string, string>> = {
     delete_note_modal_title: "Delete Note", 
     clear_input_modal_title: "Clear Input",
     
-    logout_confirm: "End current session?", // ⬅️ MEJORADO (Conciso)
-    clear_history_confirm: "Permanently delete all saved notes?", // ⬅️ MEJORADO (Conciso)
-    delete_note_confirm: "Delete this note permanently?", // ⬅️ MEJORADO (Conciso)
+    logout_confirm: "End current session?",
+    clear_history_confirm: "Permanently delete all saved notes?",
+    delete_note_confirm: "Delete this note permanently?",
     clear_input_confirm: "Clear all text?",
     
+    // --- MISSING DATA MODAL (NEW) ---
+    missing_data_title: "Patient Data Missing",
+    missing_data_desc: "To generate a note, please enter the patient's **Age** and **Sex** in the bottom bar.",
+    understood_button: "Understood",
+
+    // --- TOOLS & CERTIFICATES ---
+    tools_label: "Tools",
+    tools_certificates: "Certificates",
+    tools_referral: "Referrals", // CORREGIDO: Plural
+    tooltip_plan_max: "Available in Plan Max", 
+    cert_sick_leave: "Sick Leave",
+    cert_sports: "Sports Clearance",
+    cert_health: "Good Health",
+    cert_work: "Work Aptitude",
+    tool_clinical_auditor: "Clinical Auditor AI",
+    tool_exam_analysis: "Lab Analysis",
+    tooltip_clinical_auditor: "Second opinion & Safety check",
+    tooltip_exam_analysis: "Lab & Imaging Interpretation",
+
     login_title: "Welcome",
     login_subtitle: "Sign in",
     login_google_button: "Sign in with Google",
@@ -236,7 +243,7 @@ export const translations: Record<Language, Record<string, string>> = {
     tag_other: "Other",
     tag_other_desc: "Other issue.",
 
-    // --- PRODUCTIVITY/UTILITY KEYS (New) ---
+    // --- PRODUCTIVITY/UTILITY KEYS ---
     generating_analysis_voice: "Analyzing voice, context, and medical literature...",
     tip_productivity_title: "Work faster with Split Screen",
     tip_productivity_desc_1: "Did you know you can have CliniScribe and your Clinical Record open at the same time?",
@@ -250,6 +257,16 @@ export const translations: Record<Language, Record<string, string>> = {
     audio_meter_desc_1: "This bar should move when both speak.",
     audio_meter_desc_2: "If the patient speaks and the bar DOES NOT move, the AI can't hear them.",
     audio_meter_solution: "Solution: Disconnect headphones or use speakers.",
+
+    // --- LIMIT REACHED KEYS ---
+    limit_reached_title: "Monthly Limit Reached!",
+    limit_reached_desc: "You have used your {{limit}} free notes for this month. Don't let your workflow stop.",
+    usage_consumed: "Consumed",
+    upgrade_benefits_title: "Unlock Professional Plan",
+    benefit_extended_limits: "Increase to 300 monthly uses",
+    benefit_advanced_tools: "Access faster AI and suggestions",
+    upgrade_now_button: "View Plans & Upgrade",
+    maybe_later_button: "Maybe later",
   },
   es: {
     // --- NOTE STRUCTURE KEYS ---
@@ -266,7 +283,7 @@ export const translations: Record<Language, Record<string, string>> = {
     field_cardiopulm: "Cardiovascular y Pulmonar",
     field_abdomen: "Abdomen",
     field_neuro: "Neurológico/Extremidades",
-    section_diagnosis: "Hipótesis Diagnósticas",
+    section_diagnosis: "Hipóteses Diagnósticas",
     section_plan: "Plan e Indicaciones",
     field_followup: "Control Médico",
     field_referral: "Derivación a",
@@ -298,6 +315,7 @@ export const translations: Record<Language, Record<string, string>> = {
     tooltip_profile: "Perfil",
     tooltip_clear_history: "Borrar Historial",
     tooltip_delete_note: "Eliminar",
+    tooltip_logout: "Cerrar Sesión",
     tooltip_clear_input: "Limpiar",
     tooltip_copy_note_text: "Copiar",
     tooltip_export_pdf: "Exportar PDF",
@@ -307,7 +325,6 @@ export const translations: Record<Language, Record<string, string>> = {
     tooltip_patient_sex: "Sexo",
     tooltip_modality_in_person: "Presencial",
     tooltip_modality_telemedicine: "Telemedicina",
-    // [NUEVO] Tooltips para sugerencias manuales
     suggest_questions_tooltip: "Sugerir Preguntas",
     suggesting_loading: "Pensando...",
     copilot_active: "Copiloto Activo", 
@@ -318,15 +335,15 @@ export const translations: Record<Language, Record<string, string>> = {
     stop_generation_tooltip: "Detener Generación",
     tooltip_generate_active: "Generar Nota", 
     tooltip_attach: "Adjuntar",
-    listening_label: "ESCUCHANDO", // NUEVA: Estado de escucha activa
-    audio_transcribed_message: "✅ Audio transcrito. Presione Generar nota.", // NUEVA: Mensaje de éxito al detener
+    listening_label: "ESCUCHANDO",
+    audio_transcribed_message: "✅ Audio transcrito. Presione Generar nota.",
     
     // --- INPUT UI KEYS ---
     expand_input: "Expandir",
     collapse_input: "Contraer",
     delete_all_input: "Limpiar",
     
-    // --- MISSING BUTTON KEYS FIXED ---
+    // --- BUTTON KEYS ---
     button_word: "Word",
     button_pdf: "PDF",
     button_tutorial: "Tutorial", 
@@ -359,7 +376,7 @@ export const translations: Record<Language, Record<string, string>> = {
     remove_file_aria: "Eliminar archivo",
     transcript_label: "Transcripción",
     copy_button_title: "Copiar",
-    transcript_placeholder: "✏️ Ingresa datos clave/Examen físico. (Se complementarán con el audio para la nota).", // ACTUALIZADO
+    transcript_placeholder: "✏️ Ingresa datos clave/Examen físico. (Se complementarán con el audio para la nota).",
     record_disabled_tooltip: "Ingrese Edad/Sexo",
     generate_disabled_tooltip: "Ingrese Contexto",
     start_recording: "Transcribir",
@@ -386,7 +403,7 @@ export const translations: Record<Language, Record<string, string>> = {
     category_red_flag: "🚩 ALERTA",
     category_examination: "Examen Físico",
     category_diagnostic: "Diagnóstico",
-    category_management: "Terapéutica", // NUEVA: Gestión
+    category_management: "Terapéutica",
     error_fetching_suggestions: "Error",
     tab_note: "Nota",
     tab_history: "Historial",
@@ -422,10 +439,29 @@ export const translations: Record<Language, Record<string, string>> = {
     delete_note_modal_title: "Eliminar Nota", 
     clear_input_modal_title: "Limpiar",
 
-    logout_confirm: "¿Cerrar sesión actual?", // ⬅️ MEJORADO (Conciso)
-    clear_history_confirm: "¿Eliminar todo el historial irreversiblemente?", // ⬅️ MEJORADO (Conciso)
-    delete_note_confirm: "¿Eliminar esta nota para siempre?", // ⬅️ MEJORADO (Conciso)
+    logout_confirm: "¿Cerrar sesión actual?",
+    clear_history_confirm: "¿Eliminar todo el historial irreversiblemente?",
+    delete_note_confirm: "¿Eliminar esta nota para siempre?",
     clear_input_confirm: "¿Borrar texto?",
+
+    // --- MISSING DATA MODAL (NEW) ---
+    missing_data_title: "Faltan Datos del Paciente",
+    missing_data_desc: "Para generar la nota, es necesario ingresar la **Edad** y el **Sexo** del paciente en la barra inferior.",
+    understood_button: "Entendido",
+
+    // --- TOOLS & CERTIFICATES ---
+    tools_label: "Herramientas",
+    tools_certificates: "Certificados",
+    tools_referral: "Derivaciones", // CORREGIDO: Plural
+    tooltip_plan_max: "Disponible en Plan Max", 
+    cert_sick_leave: "Reposo", // CORREGIDO: Primer certificado
+    cert_sports: "Alta Deportiva",
+    cert_health: "Buena Salud",
+    cert_work: "Aptitud Laboral",
+    tool_clinical_auditor: "Auditor Clínico IA",
+    tool_exam_analysis: "Analizar Exámenes",
+    tooltip_clinical_auditor: "Segunda opinión y seguridad",
+    tooltip_exam_analysis: "Interpretación Labs e Imágenes",
     
     login_title: "Bienvenido",
     login_subtitle: "Iniciar sesión",
@@ -458,7 +494,7 @@ export const translations: Record<Language, Record<string, string>> = {
     tag_other: "Otro",
     tag_other_desc: "Otro problema.",
 
-    // --- PRODUCTIVITY/UTILITY KEYS (New) ---
+    // --- PRODUCTIVITY/UTILITY KEYS ---
     generating_analysis_voice: "Analizando voz, contexto y literatura médica...",
     tip_productivity_title: "Trabaja más rápido con Pantalla Dividida",
     tip_productivity_desc_1: "¿Sabías que puedes tener CliniScribe y tu Ficha Clínica abiertos al mismo tiempo?",
@@ -472,6 +508,16 @@ export const translations: Record<Language, Record<string, string>> = {
     audio_meter_desc_1: "Esta barra debe moverse cuando ambos hablan.",
     audio_meter_desc_2: "Si el paciente habla y la barra NO se mueve, la IA no lo escucha.",
     audio_meter_solution: "Solución: Desconecta los audífonos o usa altavoces.",
+
+    // --- LIMIT REACHED KEYS ---
+    limit_reached_title: "¡Límite Mensual Alcanzado!",
+    limit_reached_desc: "Has utilizado tus {{limit}} notas gratuitas de este mes. Tu trabajo es valioso, no te detengas ahora.",
+    usage_consumed: "Consumido",
+    upgrade_benefits_title: "Desbloquea el Plan Profesional",
+    benefit_extended_limits: "Aumenta a 300 usos mensuales",
+    benefit_advanced_tools: "Acceso a IA más rápida y sugerencias",
+    upgrade_now_button: "Ver Planes y Mejorar",
+    maybe_later_button: "Quizás más tarde",
   },
   pt: {
     // --- NOTE STRUCTURE KEYS ---
@@ -517,6 +563,7 @@ export const translations: Record<Language, Record<string, string>> = {
     tooltip_profile: "Perfil",
     tooltip_clear_history: "Limpar Histórico",
     tooltip_delete_note: "Excluir",
+    tooltip_logout: "Sair",
     tooltip_clear_input: "Limpar",
     tooltip_copy_note_text: "Copiar",
     tooltip_export_pdf: "Exportar PDF",
@@ -526,7 +573,6 @@ export const translations: Record<Language, Record<string, string>> = {
     tooltip_patient_sex: "Sexo",
     tooltip_modality_in_person: "Presencial",
     tooltip_modality_telemedicine: "Telemedicina",
-    // [NUEVO] Tooltips para sugerencias manuales
     suggest_questions_tooltip: "Sugerir Perguntas",
     suggesting_loading: "Pensando...",
     copilot_active: "Co-piloto Ativo", 
@@ -537,15 +583,15 @@ export const translations: Record<Language, Record<string, string>> = {
     stop_generation_tooltip: "Parar Geração",
     tooltip_generate_active: "Gerar Nota", 
     tooltip_attach: "Adicionar", 
-    listening_label: "ESCUTANDO", // NUEVA: Estado de escucha activa
-    audio_transcribed_message: "✅ Áudio transcrito. Pressione Gerar nota.", // NUEVA: Mensaje de éxito al detener
+    listening_label: "ESCUTANDO",
+    audio_transcribed_message: "✅ Áudio transcrito. Pressione Gerar nota.",
     
     // --- INPUT UI KEYS ---
     expand_input: "Expandir",
     collapse_input: "Recolher",
     delete_all_input: "Limpar",
     
-    // --- MISSING BUTTON KEYS FIXED ---
+    // --- BUTTON KEYS ---
     button_word: "Word",
     button_pdf: "PDF",
     button_tutorial: "Tutorial", 
@@ -579,7 +625,7 @@ export const translations: Record<Language, Record<string, string>> = {
     remove_file_aria: "Remover arquivo",
     transcript_label: "Transcrição",
     copy_button_title: "Copiar",
-    transcript_placeholder: "✏️ Insira dados-chave/Exame físico. (Serão complementados com o áudio para a nota).", // ACTUALIZADO
+    transcript_placeholder: "✏️ Insira dados-chave/Exame físico. (Serão complementados com o áudio para a nota).",
     record_disabled_tooltip: "Insira Idade/Sexo",
     generate_disabled_tooltip: "Insira Contexto",
     start_recording: "Transcrever",
@@ -606,7 +652,7 @@ export const translations: Record<Language, Record<string, string>> = {
     category_red_flag: "🚩 ALERTA",
     category_examination: "Exame Físico",
     category_diagnostic: "Diagnóstico",
-    category_management: "Terapéutica", // NUEVA: Gestión
+    category_management: "Terapéutica",
     error_fetching_suggestions: "Erro",
     tab_note: "Nota",
     tab_history: "Histórico",
@@ -645,10 +691,15 @@ export const translations: Record<Language, Record<string, string>> = {
     delete_note_modal_title: "Excluir Nota", 
     clear_input_modal_title: "Limpar",
 
-    logout_confirm: "Sair da sessão?", // ⬅️ MEJORADO (Conciso)
-    clear_history_confirm: "Apagar todo o histórico?", // ⬅️ MEJORADO (Conciso)
-    delete_note_confirm: "Excluir esta nota?", // ⬅️ MEJORADO (Conciso)
+    logout_confirm: "Sair da sessão?",
+    clear_history_confirm: "Apagar todo o histórico?",
+    delete_note_confirm: "Excluir esta nota?",
     clear_input_confirm: "Limpar texto?",
+
+    // --- MISSING DATA MODAL (NEW) ---
+    missing_data_title: "Dados do Paciente Faltando",
+    missing_data_desc: "Para gerar a nota, por favor insira a **Idade** e o **Sexo** do paciente na barra inferior.",
+    understood_button: "Entendido",
     
     login_title: "Bem-vindo",
     login_subtitle: "Entrar",
@@ -681,19 +732,43 @@ export const translations: Record<Language, Record<string, string>> = {
     tag_other: "Outro",
     tag_other_desc: "Outro problema.",
 
-    // --- PRODUCTIVITY/UTILITY KEYS (New) ---
+    // --- PRODUCTIVITY/UTILITY KEYS ---
     generating_analysis_voice: "Analisando voz, contexto e literatura médica...",
     tip_productivity_title: "Trabalhe mais rápido com Tela Dividida",
     tip_productivity_desc_1: "Você sabia que pode ter o CliniScribe e seu Prontuário Clínico abertos ao mesmo tempo?",
     tip_productivity_desc_2_win: "Como fazer no Chrome / Edge:",
     tip_productivity_step_1: "Clique com o botão direito na aba do seu Prontuário.",
-    tip_productivity_step_2: "Selecione a opção \"Adicionar aba à nova vista dividida\" (ou similar).",
+    tip_productivity_step_2: "Selecione a opção \"Adicionar aba à nova vista dividida\" (o similar).",
     tip_productivity_step_3: "Selecione CliniScribe no outro lado.",
     tip_productivity_desc_3_final: "Isso permitirá que você copie e cole a nota gerada sem trocar de janela constantemente.",
     tip_productivity_button: "Entendi!",
     audio_meter_title: "Monitor de Entrada",
     audio_meter_desc_1: "Esta barra deve se mover quando ambos falam.",
     audio_meter_desc_2: "Se o paciente fala e a barra NÃO se move, a IA não está ouvindo.",
-    audio_meter_solution: "Solução: Desconecte os fones de ouvido ou use alto-falantes.",
+    audio_meter_solution: "Solução: Desconecta os fones de ouvido ou use alto-falantes.",
+
+    // --- TOOLS & CERTIFICATES (MOVIDO DENTRO DE PT) ---
+    tools_label: "Ferramentas",
+    tools_certificates: "Certificados",
+    tools_referral: "Encaminhamentos", // CORREGIDO: Plural
+    tooltip_plan_max: "Disponível no Plano Max", 
+    cert_sick_leave: "Atestado",
+    cert_sports: "Atestado Esportivo",
+    cert_health: "Boa Saúde",
+    cert_work: "Aptidão Laboral",
+    tool_clinical_auditor: "Auditor Clínico IA",
+    tool_exam_analysis: "Análise de Exames",
+    tooltip_clinical_auditor: "Segunda opinião e segurança",
+    tooltip_exam_analysis: "Interpretação Labs e Imagens",
+
+    // --- LIMIT REACHED KEYS ---
+    limit_reached_title: "Limite Mensal Atingido!",
+    limit_reached_desc: "Você usou suas {{limit}} notas gratuitas deste mês. Não pare seu fluxo de trabalho.",
+    usage_consumed: "Consumido",
+    upgrade_benefits_title: "Desbloquear Plano Profissional",
+    benefit_extended_limits: "Aumente para 300 usos mensais",
+    benefit_advanced_tools: "Acesso a IA mais rápida e sugestões",
+    upgrade_now_button: "Ver Planos e Melhorar",
+    maybe_later_button: "Talvez mais tarde",
   }
 };
