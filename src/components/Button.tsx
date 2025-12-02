@@ -1,36 +1,68 @@
 import React from 'react';
-import { BaseProps } from '../types';
+// Importamos la configuración que acabamos de definir arriba
+// Asegúrate de que themeConfig.ts exista en src/theme/
+import { BUTTON_VARIANTS } from '../theme/themeConfig';
+import { SpinnerIcon } from './icons';
 
-interface ButtonProps extends BaseProps {
-  onClick?: () => void;
-  variant?: 'primary' | 'secondary' | 'outline';
-  disabled?: boolean;
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  // Usamos keyof para asegurar que solo se pasen variantes válidas
+  variant?: keyof typeof BUTTON_VARIANTS;
+  isLoading?: boolean;
+  icon?: React.ReactNode;
+  fullWidth?: boolean;
+  size?: 'sm' | 'md' | 'lg';
 }
 
 export const Button: React.FC<ButtonProps> = ({ 
   children, 
-  onClick, 
-  className = '', 
-  variant = 'primary',
-  disabled = false
+  variant = 'clinical', 
+  isLoading = false,
+  icon,
+  className = '',
+  fullWidth = false,
+  size = 'md',
+  disabled,
+  ...props 
 }) => {
-  const baseStyles = "px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 active:scale-95";
   
-  const variants = {
-    primary: "bg-indigo-600 text-white hover:bg-indigo-700 shadow-md shadow-indigo-200",
-    secondary: "bg-gray-800 text-white hover:bg-gray-900 shadow-md",
-    outline: "border-2 border-gray-200 text-gray-700 hover:border-indigo-600 hover:text-indigo-600 bg-transparent"
+  // Clases base compartidas
+  const baseStyles = "rounded-xl font-bold transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100";
+  
+  // Tamaños
+  const sizeStyles = {
+    sm: "px-3 py-1.5 text-xs",
+    md: "px-5 py-2.5 text-sm",
+    lg: "px-6 py-3.5 text-base",
   };
 
-  const disabledStyles = "opacity-50 cursor-not-allowed active:scale-100";
+  // Obtener estilos del themeConfig (con fallback a 'clinical' por seguridad)
+  // Esto evita que la app explote si la variante no existe
+  const variantStyles = BUTTON_VARIANTS[variant] || BUTTON_VARIANTS['clinical'];
+  const widthStyle = fullWidth ? 'w-full' : '';
 
   return (
     <button 
-      onClick={onClick}
-      disabled={disabled}
-      className={`${baseStyles} ${variants[variant]} ${disabled ? disabledStyles : ''} ${className}`}
+      className={`
+        ${baseStyles} 
+        ${sizeStyles[size]} 
+        ${variantStyles} 
+        ${widthStyle} 
+        ${className}
+      `}
+      disabled={disabled || isLoading}
+      {...props}
     >
-      {children}
+      {isLoading ? (
+        <>
+          <SpinnerIcon className="h-4 w-4 animate-spin" />
+          <span>Procesando...</span>
+        </>
+      ) : (
+        <>
+          {icon && <span className="shrink-0">{icon}</span>}
+          <span>{children}</span>
+        </>
+      )}
     </button>
   );
 };

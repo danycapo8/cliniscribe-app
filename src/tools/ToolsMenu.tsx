@@ -104,7 +104,9 @@ export const ToolsMenu: React.FC<Props> = ({
   const renderToolItem = (item: ToolItem, isChild = false) => {
     const isLocked = !hasAccess(item.minTier);
     const isMaxFeature = item.specialBadge === 'MAX';
-    const finalTooltipText = isLocked ? t('tooltip_plan_max') : item.tooltip;
+    
+    // CAMBIO 1: Eliminamos tooltip si es feature MAX (para evitar ruido visual)
+    const finalTooltipText = isMaxFeature ? null : (isLocked ? t('tooltip_plan_max') : item.tooltip);
     const showTooltip = !!finalTooltipText;
     
     // Identificador único para el hover
@@ -133,7 +135,8 @@ export const ToolsMenu: React.FC<Props> = ({
                 ? 'bg-gradient-to-r from-violet-50/50 to-fuchsia-50/50 dark:from-violet-900/10 dark:to-fuchsia-900/10 hover:from-violet-100 hover:to-fuchsia-100 dark:hover:from-violet-900/20 dark:hover:to-fuchsia-900/20 border border-violet-100 dark:border-violet-900/30'
                 : 'bg-white dark:bg-transparent hover:bg-slate-50 dark:hover:bg-white/5 border border-transparent hover:border-slate-100 dark:hover:border-slate-800'
           }
-          ${isLocked ? 'opacity-60 grayscale-[0.8] cursor-not-allowed' : 'cursor-pointer'}
+          ${/* CAMBIO 2: Cursor pointer siempre para invitar al clic (modal de venta) */ ''}
+          ${isLocked ? 'opacity-60 grayscale-[0.8]' : ''} cursor-pointer
         `}
       >
         {/* --- TOOLTIP CON PORTAL (Solo si es Sidebar y está hover) --- */}
@@ -195,7 +198,8 @@ export const ToolsMenu: React.FC<Props> = ({
                     </span>
                 )}
                 
-                {isLocked && !isMaxFeature && (
+                {/* CAMBIO 3: Candado visible incluso en features MAX si están bloqueadas */}
+                {isLocked && (
                     <LockIcon className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-2" />
                 )}
             </div>

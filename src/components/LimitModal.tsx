@@ -1,13 +1,15 @@
 import React from 'react';
 import { XIcon, SparklesIcon, CheckCircleIcon, LockIcon } from './icons';
 import { SubscriptionTier } from '../types/subscription';
+// Importamos el nuevo componente Button
+import { Button } from './Button';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   tier: SubscriptionTier;
   limit: number;
-  onUpgrade: () => void; // Función para llevar al usuario a la pestaña de suscripción
+  onUpgrade: () => void;
   t: (key: string) => string;
 }
 
@@ -38,7 +40,7 @@ export const LimitModal: React.FC<Props> = ({ isOpen, onClose, tier, limit, onUp
             {t('limit_reached_desc').replace('{{limit}}', limit.toString())}
           </p>
 
-          {/* Barra de progreso llena (Efecto psicológico de 'tope') */}
+          {/* Barra de progreso llena */}
           <div className="w-full bg-slate-100 dark:bg-slate-800 h-4 rounded-full mb-2 overflow-hidden border border-slate-200 dark:border-slate-700">
             <div className="h-full bg-rose-500 w-full striped-bar"></div>
           </div>
@@ -63,16 +65,19 @@ export const LimitModal: React.FC<Props> = ({ isOpen, onClose, tier, limit, onUp
             </ul>
           </div>
 
-          {/* CTA Principal */}
-          <button 
+          {/* CTA Principal REEMPLAZADO */}
+          <Button 
+            variant="brand" 
             onClick={() => { onClose(); onUpgrade(); }}
-            className="w-full py-4 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-lg shadow-lg shadow-indigo-500/30 transform transition-all active:scale-95 flex items-center justify-center gap-2 group"
+            fullWidth
+            size="lg"
+            className="group" // Para mantener la animación del icono
+            icon={<SparklesIcon className="h-5 w-5 group-hover:animate-pulse" />}
           >
-            <span>{t('upgrade_now_button')}</span>
-            <SparklesIcon className="h-5 w-5 group-hover:animate-pulse" />
-          </button>
+            {t('upgrade_now_button')}
+          </Button>
           
-          <button onClick={onClose} className="mt-4 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-medium underline decoration-slate-300 underline-offset-2">
+          <button onClick={onClose} className="mt-4 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-medium underline decoration-slate-300 underline-offset-2 bg-transparent border-none cursor-pointer">
             {t('maybe_later_button')}
           </button>
         </div>

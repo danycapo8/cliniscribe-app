@@ -1,15 +1,21 @@
 // src/services/types/gemini.types.ts
 
+export type ConsultationModality = 'in_person' | 'telemedicine';
+
 export interface ConsultationContext {
   age: string;
   sex: string;
+  modality: ConsultationModality; // Nuevo campo
   additionalContext: string;
 }
 
 export interface Profile {
   specialty: string;
-  country: 'Chile' | 'Colombia' | 'Peru' | 'Argentina' | 'Mexico' | 'Brazil' | 'LATAM'; // País específico
+  country: string;
   language: 'es' | 'pt' | 'en';
+  title?: string;
+  fullName?: string;
+  theme?: 'dark' | 'light';
 }
 
 export interface FilePart {
@@ -18,49 +24,11 @@ export interface FilePart {
 }
 
 export interface ClinicalAlert {
-  type: 'Red Flag' | 'Warning' | 'Info';
+  type: string;
   severity: 'Critical' | 'High' | 'Medium' | 'Low';
   title: string;
   details: string;
   recommendation: string;
-}
-
-export interface SOAPNote {
-  subjective: {
-    cc: string;
-    hpi: string;
-    pmh: string[];
-    medications: string[];
-    allergies: string[];
-  };
-  objective: {
-    vitals: {
-      bp?: string;
-      hr?: string;
-      rr?: string;
-      temp?: string;
-      sat?: string;
-    } | null;
-    examination: string;
-  };
-  assessment: {
-    primary_diagnosis: string;
-    icd10?: string;
-    differential: string[];
-    reasoning: string;
-  };
-  plan: {
-    medications: Array<{
-      name: string;
-      dose: string;
-      frequency: string;
-      indication: string;
-    }>;
-    tests: string[];
-    followup: string;
-    red_flags: string[];
-  };
-  alerts: ClinicalAlert[];
 }
 
 export interface ClinicalSuggestion {
