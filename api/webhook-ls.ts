@@ -32,7 +32,9 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    // 2. Obtener el Raw Body y Verificar Firma (Seguridad)
+    // ----------------------------------------------------------------------
+    // 2. VALIDACIÓN DE SEGURIDAD (CRÍTICO)
+    // ----------------------------------------------------------------------
     const rawBody = await buffer(req);
     const signature = req.headers['x-signature'];
 
@@ -41,78 +43,133 @@ export default async function handler(req: any, res: any) {
     const digest = Buffer.from(hmac.update(rawBody).digest('hex'), 'utf8');
     const signatureBuffer = Buffer.from(signature || '', 'utf8');
 
-    // Comparar firmas de forma segura
+    // Comparar firmas de forma segura (timing safe) para evitar ataques
     if (!signature || signatureBuffer.length !== digest.length || !crypto.timingSafeEqual(digest, signatureBuffer)) {
       console.error("❌ Firma inválida de Lemon Squeezy - Posible ataque o error de configuración");
       return res.status(401).json({ error: 'Invalid signature' });
     }
 
-    // 3. Procesar el Evento
+    // ----------------------------------------------------------------------
+    // 3. PARSEO Y EXTRACCIÓN DE DATOS
+    // ----------------------------------------------------------------------
     const payload = JSON.parse(rawBody.toString());
-    const eventName = payload.meta.event_name;
-    const data = payload.data;
+    
+    // Desestructuramos meta para sacar custom_data y event_name
+    const { meta, data } = payload; 
+    const eventName = meta.event_name;
     const attributes = data.attributes;
-
-    // Email del comprador
+    
+    // Datos del Usuario y Suscripción
     const userEmail = attributes.user_email;
+    const lemonSubscriptionId = data.id; // ID único de la suscripción en LS
+    const lemonCustomerId = attributes.customer_id;
+    const status = attributes.status; // 'active', 'past_due', 'on_trial', 'cancelled', 'expired'
+    const updatePaymentUrl = attributes.urls?.update_payment_method; // Link para actualizar tarjeta
+    const cancelAtPeriodEnd = attributes.cancelled; // Booleano: ¿Canceló pero sigue activo hasta fin de mes?
+    const renawsAt = attributes.renews_at || attributes.ends_at; // Fecha clave
 
-    console.log(`🔔 Webhook recibido: ${eventName} | Email: ${userEmail}`);
+    // EXTRAER CUSTOM DATA (Estrategia "Candado Doble")
+    // Lemon Squeezy devuelve los custom data dentro de meta.custom_data
+    const userIdFromCheckout = meta?.custom_data?.user_id;
 
-    // Solo nos interesan eventos de creación o renovación de suscripción
-    if (eventName === 'subscription_created' || eventName === 'subscription_updated') {
-      
-      // Lógica de mapeo: Nombre del producto -> Tu Tier interno
-      let newTier = 'free';
-      const variantName = (attributes.variant_name || '').toLowerCase();
-      const productName = (attributes.product_name || '').toLowerCase();
+    console.log(`🔔 Webhook recibido: ${eventName} | Status: ${status} | Email: ${userEmail} | ID: ${userIdFromCheckout || 'N/A'}`);
 
-      // "Plan Profesional" en Lemon Squeezy corresponde a 'basic' en tu código (300 notas)
-      if (variantName.includes('pro') || productName.includes('pro')) {
-        newTier = 'basic'; 
-      } 
-      // "Plan Max" corresponde a 'pro' en tu código (Ilimitado)
-      else if (variantName.includes('max') || productName.includes('max')) {
-        newTier = 'pro'; 
-      }
+    // ----------------------------------------------------------------------
+    // 4. LÓGICA DE NEGOCIO (Mapeo de Planes)
+    // ----------------------------------------------------------------------
+    let appTier = 'free';
+    let appStatus = 'active'; // Estado interno de tu app
 
-      console.log(`🔍 Detectado plan: ${newTier} para ${userEmail}`);
+    // Detectar Plan basado en el nombre del producto/variante
+    const variantName = (attributes.variant_name || '').toLowerCase();
+    const productName = (attributes.product_name || '').toLowerCase();
 
-      // 4. Buscar usuario en Supabase Auth
-      const { data: users, error: userError } = await supabaseAdmin.auth.admin.listUsers();
-      
-      if (userError) {
-        throw new Error(`Error listando usuarios: ${userError.message}`);
-      }
+    // Lógica de asignación de Tiers
+    if (productName.includes('pro') || variantName.includes('pro') || variantName.includes('profesional')) {
+      appTier = 'basic'; // Tu código para Plan Profesional
+    } else if (productName.includes('max') || variantName.includes('max')) {
+      appTier = 'pro';   // Tu código para Plan MAX (Ilimitado)
+    }
 
-      // --- AQUÍ ESTÁ EL FIX DEL ERROR ROJO ---
-      // Usamos (u: any) para que TypeScript no se queje si la definición de tipos de Supabase es estricta
-      const user = users?.users.find((u: any) => u.email === userEmail);
+    // Ajuste de Tier según el estado de la suscripción
+    // Si el pago falló o expiró, forzamos a 'free' aunque el producto sea Pro
+    if (eventName === 'subscription_payment_failed' || eventName === 'subscription_expired' || status === 'expired') {
+        appTier = 'free';
+        appStatus = 'expired';
+        console.log(`📉 Suscripción expirada/fallida para ${userEmail}. Bajando a FREE.`);
+    } else if (status === 'past_due') {
+        // Tarjeta falló pero LS está reintentando.
+        // DECISIÓN: ¿Le cortas el servicio o le das gracia?
+        // Aquí lo mantenemos en su plan pero marcamos el status como 'past_due' para avisarle en el frontend.
+        appStatus = 'past_due';
+        // appTier se mantiene en 'basic'/'pro' temporalmente
+    }
 
-      if (user) {
-        // 5. Actualizar el perfil del usuario
-        const { error: updateError } = await supabaseAdmin
-          .from('profiles')
-          .update({
-            subscription_tier: newTier,
-            current_period_end: attributes.renews_at // Guardamos cuándo vence para lógica futura
-          })
-          .eq('id', user.id);
+    // ----------------------------------------------------------------------
+    // 5. BÚSQUEDA DEL USUARIO (ESTRATEGIA BLINDADA)
+    // ----------------------------------------------------------------------
+    let user = null;
 
-        if (updateError) {
-          console.error("❌ Error actualizando perfil en DB:", updateError);
-          return res.status(500).json({ error: 'Database update failed' });
-        }
-        console.log(`✅ ÉXITO: Usuario ${user.id} actualizado al plan ${newTier}`);
-      } else {
-        console.warn(`⚠️ ALERTA: Se pagó una suscripción para ${userEmail}, pero no existe ese usuario en CliniScribe.`);
-        // Aquí podrías enviar un email a soporte si quisieras automatizarlo más
+    // INTENTO A: Buscar por ID (Infalible si viene del frontend)
+    if (userIdFromCheckout) {
+      const { data: userById, error: idError } = await supabaseAdmin.auth.admin.getUserById(userIdFromCheckout);
+      if (!idError && userById?.user) {
+          user = userById.user;
+          console.log(`🎯 Usuario encontrado por ID directo: ${user.id}`);
       }
     }
 
-    // (Opcional) Manejo de cancelaciones para devolver a Free
-    if (eventName === 'subscription_cancelled' || eventName === 'subscription_expired') {
-       // Lógica futura: buscar usuario y poner subscription_tier = 'free'
-       console.log(`ℹ️ Suscripción cancelada/expirada para ${userEmail}`);
+    // INTENTO B: Buscar por Email (Fallback para casos legacy, manuales o si falla el ID)
+    if (!user) {
+      console.log("⚠️ No vino ID en el checkout (o no se encontró), buscando por email...");
+      const { data: usersData, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+      
+      if (listError) {
+          throw new Error(`Error listando usuarios: ${listError.message}`);
+      }
+      
+      // Buscamos coincidencia exacta de email
+      user = usersData?.users.find((u: any) => u.email === userEmail);
+    }
+
+    // ----------------------------------------------------------------------
+    // 6. ACTUALIZACIÓN DE BASE DE DATOS
+    // ----------------------------------------------------------------------
+    if (user) {
+      // Preparamos el objeto de actualización con TODOS los campos de control
+      const updatePayload = {
+        subscription_tier: appTier,           // 'free', 'basic', 'pro'
+        subscription_status: status,          // Estado original de LS ('active', 'past_due', etc.)
+        payment_provider: 'lemon-squeezy',
+        
+        // Datos de vinculación vitales para soporte
+        lemon_subscription_id: `${lemonSubscriptionId}`, 
+        lemon_customer_id: `${lemonCustomerId}`,
+        
+        // Fechas y control de renovación
+        current_period_end: renawsAt,
+        cancel_at_period_end: cancelAtPeriodEnd, // True si el usuario canceló (útil para mostrar "Tu plan vence el...")
+        
+        // Link para gestionar pagos (útil para botón "Actualizar Tarjeta")
+        update_payment_url: updatePaymentUrl
+      };
+
+      const { error: updateError } = await supabaseAdmin
+        .from('profiles')
+        .update(updatePayload)
+        .eq('id', user.id);
+
+      if (updateError) {
+        console.error("❌ Error actualizando perfil en DB:", updateError);
+        return res.status(500).json({ error: 'Database update failed' });
+      }
+      
+      console.log(`✅ ÉXITO: Usuario ${user.id} actualizado a ${appTier} (Status: ${status})`);
+
+    } else {
+      console.warn(`⚠️ ALERTA CRÍTICA: Se recibió pago de ${userEmail} pero NO existe el usuario en Supabase.`);
+      // Aquí podrías agregar lógica para enviar un email a tu soporte
+      return res.status(200).json({ received: true, warning: 'User not found' });
     }
 
     return res.status(200).json({ received: true });

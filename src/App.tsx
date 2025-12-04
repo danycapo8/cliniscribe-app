@@ -325,7 +325,38 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
   }, [profile.theme]);
 
   const handleSubscriptionPlanSelect = (planId: string) => {
-      alert("¡Gracias por tu interés! \n\nEl módulo de pagos automáticos estará disponible pronto.\n\nPara activar este plan ahora, por favor contacta a soporte o administración directamente desde la plataforma.");
+      if (!session?.user) return;
+
+      // 1. CONFIGURACIÓN DE TUS PRODUCTOS REALES
+      const LS_VARIANTS: Record<string, string> = {
+        // Tu Plan "Profesional" (Extraído de tu enlace):
+        basic: "b888df48-e056-433e-ab41-722dd6b9246c", 
+        
+        // ID para el Plan "Max" (Si aún no tienes el link, usa el mismo del basic por ahora para probar)
+        pro: "b888df48-e056-433e-ab41-722dd6b9246c" 
+      };
+
+      // Seleccionamos el ID correcto según el botón que presionó el usuario
+      const variantId = LS_VARIANTS[planId] || LS_VARIANTS['basic'];
+      
+      const userId = session.user.id;
+      const userEmail = session.user.email; 
+
+      // 2. Construcción de Parámetros (La "Magia" para vincular la cuenta)
+      const params = new URLSearchParams();
+      
+      // A) Pre-llenar el email para mejorar la experiencia
+      if (userEmail) params.append('checkout[email]', userEmail);
+      
+      // B) CRÍTICO: Pasar el ID de Supabase oculto para el Webhook
+      params.append('checkout[custom][user_id]', userId);
+
+      // 3. Generar la URL Final
+      // Usamos tu tienda "cliniscribe" y el ID que extrajimos
+      const checkoutUrl = `https://cliniscribe.lemonsqueezy.com/buy/${variantId}?${params.toString()}`;
+
+      // 4. Abrir la pasarela
+      window.open(checkoutUrl, '_blank');
   };
 
   const clearAppState = () => {

@@ -16,18 +16,20 @@ import {
   Lock as LockIcon, 
   HeartPulse as HeartPulseIcon, 
   Stethoscope as StethoscopeIcon,
-  PlusSquare as PlusSquareIcon,
+  PlusSquare as PlusSquareIcon, 
   Globe as GlobeIcon,
   ChevronDown as ChevronDownIcon,
   Quote as QuoteIcon, 
   Lightbulb as LightbulbIcon 
 } from 'lucide-react';
 import { Button } from './Button';
-import { LegalModal } from './LegalModal'; // <--- NUEVO IMPORT
+import { LegalModal } from './LegalModal';
 import atencionMedicaImage from '../assets/atencion_medica.webp';
 import draGuevaraImage from '../assets/testimonio_dra_guevara.jpg';
 import drZuritaImage from '../assets/testimonio_dr_zurita.jpeg';
 import drAranedaImage from '../assets/testimonio_dr_araneda.png'; 
+// --- NUEVO IMPORT DE VIDEO ---
+import demoVideo from '../assets/Demo_CliniScribe.mp4';
 
 interface LandingPageProps {
   onLogin: () => void;
@@ -46,9 +48,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [scrolled, setScrolled] = useState(false);
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   
-  // --- NUEVOS ESTADOS PARA LEGALES ---
+  // --- ESTADOS PARA LEGALES ---
   const [legalModalOpen, setLegalModalOpen] = useState(false);
   const [activeLegalDoc, setActiveLegalDoc] = useState<'terms' | 'privacy' | null>(null);
+
+  // --- NUEVO ESTADO PARA VIDEO DEMO ---
+  const [demoModalOpen, setDemoModalOpen] = useState(false);
 
   const languageMenuRef = useRef<HTMLDivElement>(null);
 
@@ -84,7 +89,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     }
   };
 
-  // --- NUEVA FUNCIÓN PARA ABRIR LEGALES ---
   const openLegal = (type: 'terms' | 'privacy') => {
     setActiveLegalDoc(type);
     setLegalModalOpen(true);
@@ -97,11 +101,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       hero: {
         title1: "Tu voz es la única",
         title2: "herramienta que necesitas.",
-        // DIVISIÓN PARA NEGRITA
         sub_pre: "Transforma conversaciones médico-paciente en notas clínicas estructuradas con precisión del 99%. ",
-        sub_bold: "Recupera tu vida fuera de la consulta.", // CAMBIO: consultorio -> consulta
+        sub_bold: "Recupera tu vida fuera de la consulta.",
         cta1: "Comenzar Prueba Gratis",
-        cta2: "Ver Demo en Vivo"
+        cta2: "Ver Demo" // <--- ACTUALIZADO
       },
       mockup: { 
         status: "Transcribiendo", 
@@ -110,7 +113,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         objective: "OBJETIVO", 
         analysis: "ANÁLISIS (IA)", 
         suggestion: "Detectada posible interacción entre Warfarina y Amiodarona.",
-        // TRADUCCIONES NUEVAS PARA LA PANTALLA
         history: "Historial Reciente",
         gastro: "Gastro",
         now: "Ahora",
@@ -175,7 +177,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         sub_pre: "Transform doctor-patient conversations into structured clinical notes with 99% accuracy. ",
         sub_bold: "Reclaim your life outside the clinic.",
         cta1: "Start Free Trial",
-        cta2: "Watch Live Demo"
+        cta2: "Watch Demo" // <--- ACTUALIZADO
       },
       mockup: { 
         status: "Transcribing", 
@@ -248,7 +250,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         sub_pre: "Transforme conversas médico-paciente em notas clínicas estruturadas com 99% de precisão. ",
         sub_bold: "Recupere sua vida fora do consultório.",
         cta1: "Começar Teste Grátis",
-        cta2: "Ver Demo ao Vivo"
+        cta2: "Ver Demo" // <--- ACTUALIZADO
       },
       mockup: { 
         status: "Transcrevendo", 
@@ -526,7 +528,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     >
                         {t_content.hero.cta1} <ArrowRightIcon className="ml-2 h-5 w-5" />
                     </Button>
-                    <button onClick={() => scrollToSection('features')} className="px-8 py-4 text-lg font-bold text-slate-700 bg-white border-2 border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center justify-center gap-2 shadow-sm h-auto">
+                    {/* BOTÓN DEMO ACTUALIZADO: Abre el modal */}
+                    <button onClick={() => setDemoModalOpen(true)} className="px-8 py-4 text-lg font-bold text-slate-700 bg-white border-2 border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center justify-center gap-2 shadow-sm h-auto">
                         <PlayCircleIcon className="h-5 w-5 text-slate-400" />
                         {t_content.hero.cta2}
                     </button>
@@ -994,6 +997,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             type={activeLegalDoc} 
             language={currentLang} 
         />
+
+        {/* --- MODAL DE VIDEO DEMO --- */}
+        {demoModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-300" onClick={() => setDemoModalOpen(false)}>
+            <div className="relative w-full max-w-5xl bg-black rounded-2xl overflow-hidden shadow-2xl border border-slate-800" onClick={e => e.stopPropagation()}>
+               <button onClick={() => setDemoModalOpen(false)} className="absolute top-4 right-4 z-10 p-2 bg-black/50 text-white rounded-full hover:bg-white/20 transition"><XIcon className="h-6 w-6"/></button>
+               <video src={demoVideo} controls autoPlay className="w-full h-auto" />
+            </div>
+          </div>
+        )}
     </div>
   );
 };
