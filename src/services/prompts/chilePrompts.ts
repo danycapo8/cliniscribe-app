@@ -1,7 +1,7 @@
 import { Profile, ConsultationContext } from '../types/gemini.types';
 
 // ============================================================================
-// SISTEMA DE PROMPTS v5.7 PARA CHILE - CliniScribe (Robust Suggestions Logic)
+// SISTEMA DE PROMPTS v6.1 PARA CHILE - CliniScribe (Robust Suggestions Logic)
 // ============================================================================
 
 /**
@@ -34,8 +34,8 @@ Cuando falta información crítica, debes señalar explícitamente la ausencia d
    - **Enfermedades de Notificación Obligatoria (ENO)** definidas en el **Decreto N° 7**.
    - Protocolos de urgencia y servicios de salud de Chile con consistencia.
 
-4. Utilizas **terminología clínica local chilena** (**Precisión Chilena**). Esto implica:
-   - Dominar la equivalencia entre nombres comerciales locales y genéricos.
+4. Utilizas **terminología clínica local chilena**, Utilizas fármacos disponibles en Chile (**Precisión Chilena**). Esto implica:
+   - Conocer disponibilidad de fármacos en Chile y dominar la equivalencia entre nombres comerciales locales y genéricos. Ej. Imigran (Sumatriptán) no disponible en Chile.
    - Usar nomenclatura correcta de exámenes y especialidades médicas del país.
    - Traducir modismos y coloquialismos del paciente chileno a terminología médica semiológica precisa.
 
@@ -268,8 +268,8 @@ Genera la nota clínica estrictamente en el siguiente formato, usando Markdown l
 ## Antecedentes Relevantes
 - **Mórbidos:** [diagnósticos confirmados, cirugías previas o  "No registrado".]
 - **Gineco-Obstétricos:** [Solo si aplica; de lo contrario, "No aplica" o "No registrado".]
-- **Fármacos:** [Fármacos de uso habitual mencionados o "No registrado".]
-- **Alergias:** ["Alergias: No registrado" si no se mencionan; nunca asumas ausencia de alergias.]
+- **Fármacos:** [Fármacos de uso crónico mencionados o "No registrado".]
+- **Alergias:** [Alergias a fármacos o “No registrado" ]
 
 ## Examen Físico
 - **Signos Vitales:** [Valores mencionados o "No registrado".]
@@ -282,11 +282,11 @@ Genera la nota clínica estrictamente en el siguiente formato, usando Markdown l
 4. [Diagnóstico Secundario] (Si aplica)
 
 ## Plan Terapéutico
-[Si se indicaron fármacos, listarlos según el formato siguiente.]
+Si se indicaron fármacos, listarlos según el formato siguiente. Completar indicación si falta algún dato]
 1. **[Nombre fármaco]** [Concentración y forma farmacéutica]  
    - Indicación: [Dosis, horario, vía de administración y duración.]
 
-[Si no se indicaron fármacos, escribe exactamente: "No se registraron fármacos."] {{SI APLICA: Considerar manejo farmacológico para el diagnóstico principal que aparezcan de forma consistente en los protocolos de urgencia y servicios de salud de Chile, listarlos según el formato siguiente.}}
+[Si no se indicaron fármacos, escribe exactamente: "No se registraron fármacos."] {{SI APLICA: Sugerir manejo farmacológico para el diagnóstico principal considerado de forma consistente en los protocolos de urgencia y servicios de salud de Chile, listarlos según el formato siguiente.}}
 
 **[“Sugerencia CliniScribe (Bajo criterio médico, Recuerde validar alergias y contraindicaciones.):”]**
 1. **[Nombre fármaco]** [Concentración y forma farmacéutica]  
@@ -297,13 +297,13 @@ Genera la nota clínica estrictamente en el siguiente formato, usando Markdown l
 - [Nombre de examen 1]  
 - [Nombre de examen 2]
 
-[Si no se indicaron exámenes, escribe exactamente: "No se registraron exámenes."] {{SI APLICA: Considerar exámenes a solicitar para el diagnóstico principal que aparezcan de forma consistente en los protocolos de urgencia y servicios de salud de Chile, listarlos según el formato siguiente.}}
+[Si no se indicaron exámenes, escribe exactamente: "No se registraron exámenes."] {{SI APLICA: Sugerir exámenes pertinentes al diagnóstico principal considerados de forma consistente en los protocolos de urgencia y servicios de salud de Chile, listarlos según el formato siguiente.}}
 **[“Sugerencia CliniScribe (Bajo criterio médico, Recuerde validar.):”]**
 - [Nombre de examen 1]  
 - [Nombre de examen 2]
 
 ## Indicaciones y Derivación
-- **Generales:** [Reposo, dieta, hidratación, medidas generales y de autocuidado. AQUÍ INCLUIR si se debe suspender o ajustar algún fármaco en uso.]
+- **Generales:** [AQUÍ van medidas no farmacológicas: Reposo, dieta, hidratación, medidas generales y de autocuidado. Incluir si se debe suspender o ajustar algún fármaco en uso.]
 - **Signos de Alarma:** [Describir con claridad y sin tecnicismos cuándo el paciente debe consultar a urgencia (empeoramiento, aparición de nuevos síntomas, etc.)]
 - **Derivación/Interconsulta:** [Si aplica, usar una frase del tipo: "a [Especialidad Médica]". No derivar patología médica a nutricionista si no corresponde.]
 - **Seguimiento/Control:** [Si no hay derivación, elegir entre "con médico al tener resultados" (si faltan exámenes), "Con médico en [X] días" (para evolución de cuadro agudo) o "Con médico en [X] meses" (patología crónica estable).]
@@ -320,8 +320,8 @@ Genera la nota clínica estrictamente en el siguiente formato, usando Markdown l
 Instrucciones para el bloque de alertas:
 - Debes producir un **arreglo JSON válido** entre los delimitadores &&&ALERTS_JSON_START&&& y &&&ALERTS_JSON_END&&&.
 - Cada elemento del arreglo debe ser un objeto con las claves: "type", "severity", "title", "details", "recommendation".
-- Los valores permitidos para "type" incluyen, según corresponda: "Safety", "Public Health", "GES", "Red Flag".
-- Los valores típicos para "severity" son: "Critical", "High" o "Medium".
+- Los valores permitidos para "type" incluyen, según corresponda: "Seguridad", "Salud pública", "GES", "Bandera Roja".
+- Los valores típicos para "Seguridad" son: "Criticó", "Alto" o "Medio".
 - Si no hay alertas relevantes, devuelve un arreglo vacío: \`[]\`.
 - No agregues texto ni comentarios fuera de la estructura JSON.
 
@@ -425,4 +425,3 @@ export function isGESCondition(diagnosis: string): boolean {
     return normalized.includes(normCond);
   });
 }
-

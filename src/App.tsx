@@ -1,9 +1,11 @@
+// src/App.tsx
+
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from './services/supabaseClient';
 
-// --- TUS COMPONENTES (INTACTOS) ---
+// --- SERVICIOS Y TIPOS ---
 import { 
   generateClinicalNoteStream, 
   generateSuggestionsStateless, 
@@ -14,25 +16,24 @@ import {
   parseAndHandleGeminiError 
 } from './services/geminiService';
 import { 
-  SpinnerIcon, AlertTriangleIcon, CopyIcon, FileDownIcon, SparklesIcon, 
-  CheckCircleIcon, NotesIcon, UserIcon, XIcon, ChevronLeftIcon, LogOutIcon, MoonIcon, SunIcon,
-  LightbulbIcon 
+  SpinnerIcon, CopyIcon, FileDownIcon, SparklesIcon, 
+  CheckCircleIcon, NotesIcon, UserIcon, XIcon, MoonIcon, SunIcon
 } from './components/icons';
 import { translations, Language } from './translations';
-import { FeedbackWidget } from './components/FeedbackWidget';
-import Login from './components/Login';
 import { useAudioLevel } from './hooks/useAudioLevel';
 import { useAudioRecorder } from './hooks/useAudioRecorder';
-import { CertificateModal } from './tools/CertificateModal';
-import { CertificateType } from './types/certificates';
 import { checkQuota, registerUsage } from './services/usageService';
 import { SubscriptionTier, PLAN_LIMITS } from './types/subscription';
-import { SubscriptionDashboard } from './components/SubscriptionDashboard';
-import { LimitModal } from './components/LimitModal';
 import { transcribeAudioWithGroq } from './services/transcriptionService';
-import { Button } from './components/Button';
+import { CertificateType } from './types/certificates';
 
-// COMPONENTES HIJOS
+// --- COMPONENTES UI ---
+import { Button } from './components/Button';
+import { FeedbackWidget } from './components/FeedbackWidget';
+import Login from './components/Login';
+import { LimitModal } from './components/LimitModal';
+import { CertificateModal } from './tools/CertificateModal';
+import { SubscriptionDashboard } from './components/SubscriptionDashboard';
 import { OnboardingModal } from './components/OnboardingModal';
 import { AppSidebar } from './components/AppSidebar';
 import { PatientInputBar } from './components/PatientInputBar';
@@ -43,6 +44,11 @@ import { TermsContent } from './components/legal/TermsContent';
 import { PrivacyContent } from './components/legal/PrivacyContent';
 import { ProvidersPage } from './components/ProvidersPage';
 
+// --- NUEVOS COMPONENTES (ACORDEONES Y ALERTAS) ---
+import { ClinicalNoteViewer } from './components/ClinicalNoteViewer';
+import { ClinicalAlertsViewer } from './components/ClinicalAlertsViewer';
+
+// --- DECLARACIONES GLOBALES ---
 declare global {
   interface Window {
     SpeechRecognition: any;
@@ -58,12 +64,8 @@ const SplitIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
-const RE_NEWLINE = new RegExp('\\n', 'g');
-const RE_SIMPLE_JSON = /^[\s]*\{[\s\S]*\}[\s]*$/; 
+// Expresiones regulares para limpieza
 const RE_ORPHAN_JSON_ARRAY = /(\n\s*\[\s*\{\s*"type":[\s\S]*\]\s*)$/;
-const RE_HYPOTHESIS_TITLE = new RegExp('hipótesis|hypotheses|diagnósticas|diagnósticos|análisis|assessment', 'i');
-const RE_STUDIES_TITLE = new RegExp('estudios|studies|exames|exámenes|solicitud|tests', 'i');
-const RE_HYPOTHESIS_LINE = new RegExp('^\\d+\\.\\s*(.*)$', 'i');
 
 const cleanTextForExport = (text: string): string => {
     if (!text) return "";
@@ -73,17 +75,6 @@ const cleanTextForExport = (text: string): string => {
         .replace(/\*\*(.*?)\*\*/g, '$1')
         .replace(/\*(?!\s)(.*?)\*/g, '$1')
         .trim();
-};
-
-const renderBoldText = (text: string) => {
-    if (!text) return null;
-    const parts = text.split(/(\*\*.*?\*\*)/g);
-    return parts.map((part, index) => {
-        if (part.startsWith('**') && part.endsWith('**')) {
-            return <strong key={index} className="font-bold text-sky-600 dark:text-sky-300">{part.slice(2, -2)}</strong>;
-        }
-        return <span key={index}>{part}</span>;
-    });
 };
 
 export interface ExtendedProfile extends Profile {
@@ -124,70 +115,6 @@ const PublicLegalPage: React.FC<{ type: 'terms' | 'privacy' }> = ({ type }) => {
         </div>
     );
 };
-
-const ClinicalNoteOutput: React.FC<{ note: string, t: any }> = ({ note, t }) => {
-    const sections = useMemo(() => {
-        if (!note) return { disclaimer: '', sections: [] };
-        const lines = note.split(RE_NEWLINE);
-        const parsed: { title: string, content: string }[] = [];
-        let currentTitle = '';
-        let currentLines: string[] = [];
-        let disclaimer = '';
-        lines.forEach((line) => {
-            if (line.startsWith('## ')) {
-                if (currentTitle) parsed.push({ title: currentTitle, content: currentLines.join('\n').trim() });
-                else if (currentLines.length > 0) disclaimer = currentLines.join('\n').trim();
-                currentTitle = line.substring(3).trim();
-                currentLines = [];
-            } else currentLines.push(line);
-        });
-        if (currentTitle) parsed.push({ title: currentTitle, content: currentLines.join('\n').trim() });
-        else if (currentLines.length > 0 && !disclaimer) disclaimer = currentLines.join('\n').trim();
-        return { disclaimer, sections: parsed };
-    }, [note]);
-
-    return (
-        <div className="space-y-6 pb-10 w-full min-w-0 max-w-4xl mx-auto">
-             {sections.disclaimer && <div className="text-xs text-slate-500 italic border-b border-slate-200 dark:border-slate-800 pb-3">{sections.disclaimer}</div>}
-            {sections.sections.map((section, idx) => {
-                if (section.content.includes('{"type":') || section.content.includes('"alerta_clinica"') || RE_SIMPLE_JSON.test(section.content)) return null;
-                const isHypothesis = RE_HYPOTHESIS_TITLE.test(section.title);
-                const isStudies = RE_STUDIES_TITLE.test(section.title);
-                const isSpecialSection = isHypothesis || isStudies;
-
-                return (
-                    <div key={idx} className="group bg-white dark:bg-slate-900/40 rounded-xl p-6 border border-slate-200 dark:border-slate-800/50 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm dark:shadow-none">
-                       <div className="flex items-center justify-between mb-4 border-b border-slate-100 dark:border-slate-800 pb-3">
-                           <h3 className="text-base font-bold text-slate-800 dark:text-sky-200 flex items-center gap-3 break-words">
-                               {isHypothesis ? <LightbulbIcon className="h-4 w-4 text-amber-500 shrink-0"/> : <div className="w-1.5 h-1.5 bg-sky-500 rounded-full shadow-[0_0_8px_rgba(14,165,233,0.8)] shrink-0"></div>}
-                               <span>{section.title}</span>
-                           </h3>
-                           {(!isSpecialSection || isStudies) && 
-                             <button onClick={() => navigator.clipboard.writeText(cleanTextForExport(section.content))} className="p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title={t('copy_button_title')}>
-                               <CopyIcon className="h-4 w-4"/>
-                             </button>
-                           }
-                       </div>
-                       <div className="text-slate-600 dark:text-slate-300 leading-relaxed text-sm font-normal break-words whitespace-pre-wrap min-w-0">
-                           {isHypothesis ? (
-                               <div className="space-y-3">
-                                   {section.content.split('\n').map((line, lIdx) => {
-                                       const itemMatch = line.match(RE_HYPOTHESIS_LINE);
-                                       if (itemMatch) return <div key={lIdx} className="bg-slate-50 dark:bg-slate-950/50 p-3 rounded-lg border border-slate-200 dark:border-slate-800/50"><strong className="text-sky-700 dark:text-sky-100 font-semibold text-xs">{line.split(/\.|:/)[0]}:</strong> <span className="text-sky-600 dark:text-sky-300 text-sm font-medium">{itemMatch[1]}</span></div>;
-                                       if (line.trim()) return <div key={lIdx} className="pl-4 border-l-2 border-slate-300 dark:border-slate-700 ml-1 text-xs text-slate-500 italic mt-1 break-words">{renderBoldText(line)}</div>;
-                                       return null;
-                                   })}
-                               </div>
-                           ) : (
-                               <div className="space-y-1">{section.content.split('\n').map((line, i) => <div key={i} className="break-words">{renderBoldText(line)}</div>)}</div>
-                           )}
-                       </div>
-                    </div>
-                )
-            })}
-        </div>
-    )
-}
 
 // ============================================================================
 // COMPONENTE: WORKSPACE PRIVADO
@@ -251,7 +178,10 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
   
   const [history, setHistory] = useState<HistoricalNote[]>([]);
   const [viewingHistoryNoteId, setViewingHistoryNoteId] = useState<string | null>(null);
-  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; type: 'clear_history' | 'delete_note' | 'logout' | null; itemId?: string; }>({ isOpen: false, type: null }); 
+  
+  // MODIFICADO: Agregado 'new_note' al tipo de confirmModal
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; type: 'clear_history' | 'delete_note' | 'logout' | 'new_note' | null; itemId?: string; }>({ isOpen: false, type: null }); 
+  
   const [suggestedQuestions, setSuggestedQuestions] = useState<any[]>([]);
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
 
@@ -266,9 +196,6 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
   const audioRecordedTimeoutRef = useRef<number | null>(null);
   const transcriptRef = useRef(transcript);
   
-  // Ref para controlar cuánto ha cambiado la transcripción
-  const lastAnalysisLength = useRef(0);
-
   useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
 
   // --- CONFIGURACIÓN DE SUGERENCIAS EN VIVO (30 SEGUNDOS) ---
@@ -276,21 +203,15 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
     let interval: NodeJS.Timeout;
 
     if (autoSuggestEnabled && audioRecorder.isRecording) {
-        // Ejecución inmediata si hay suficiente contexto Y es la primera vez
-        // Esto cubre el caso donde ya hay texto (>50) al activar el switch
         if (transcriptRef.current.length > 50 && !isSuggesting) {
             fetchSuggestions(transcriptRef.current, context);
         }
 
-        // Intervalo de 30 segundos
         interval = setInterval(() => {
-            // SOLO si hay al menos 50 caracteres para no enviar basura
             if (transcriptRef.current.length > 50 && !isSuggesting) {
-                // Enviamos TODO el contexto acumulado (transcriptRef.current)
-                // para que DeepSeek tenga la historia completa.
                 fetchSuggestions(transcriptRef.current, context);
             }
-        }, 30000); // 30 segundos exactos
+        }, 30000); 
     }
 
     return () => {
@@ -326,36 +247,17 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
 
   const handleSubscriptionPlanSelect = (planId: string) => {
       if (!session?.user) return;
-
-      // 1. CONFIGURACIÓN DE TUS PRODUCTOS REALES
       const LS_VARIANTS: Record<string, string> = {
-        // Tu Plan "Profesional" (Extraído de tu enlace):
         basic: "b888df48-e056-433e-ab41-722dd6b9246c", 
-        
-        // ID para el Plan "Max" (Si aún no tienes el link, usa el mismo del basic por ahora para probar)
         pro: "b888df48-e056-433e-ab41-722dd6b9246c" 
       };
-
-      // Seleccionamos el ID correcto según el botón que presionó el usuario
       const variantId = LS_VARIANTS[planId] || LS_VARIANTS['basic'];
-      
       const userId = session.user.id;
       const userEmail = session.user.email; 
-
-      // 2. Construcción de Parámetros (La "Magia" para vincular la cuenta)
       const params = new URLSearchParams();
-      
-      // A) Pre-llenar el email para mejorar la experiencia
       if (userEmail) params.append('checkout[email]', userEmail);
-      
-      // B) CRÍTICO: Pasar el ID de Supabase oculto para el Webhook
       params.append('checkout[custom][user_id]', userId);
-
-      // 3. Generar la URL Final
-      // Usamos tu tienda "cliniscribe" y el ID que extrajimos
       const checkoutUrl = `https://cliniscribe.lemonsqueezy.com/buy/${variantId}?${params.toString()}`;
-
-      // 4. Abrir la pasarela
       window.open(checkoutUrl, '_blank');
   };
 
@@ -489,12 +391,47 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
     }
   };
 
-  const handleNewNote = () => {
-      setViewingHistoryNoteId(null); setGeneratedNote(''); setAlerts([]); 
+  // MODIFICADO: performReset ahora detiene activamente la grabación y el reconocimiento
+  const performReset = () => {
+      // 1. Detener el Reconocimiento de Voz (Speech to Text)
+      if (recognitionRef.current) {
+          isUserStoppingRef.current = true; // Importante: Evita que se reinicie automáticamente
+          recognitionRef.current.stop();
+      }
+
+      // 2. Detener la Grabación de Audio (MediaRecorder)
+      if (audioRecorder.isRecording) {
+          audioRecorder.stopRecording();
+      }
+
+      // 3. Limpiar Estados de Datos
+      setViewingHistoryNoteId(null); 
+      setGeneratedNote(''); 
+      setAlerts([]); 
       setContext(prev => ({ age: '', sex: '', modality: prev.modality, additionalContext: "" }));
-      setTranscript(''); setDoctorNotes(''); setSuggestedQuestions([]); setUploadedFiles([]); 
-      if (isMobile) setIsSidebarOpen(false);
+      setTranscript(''); 
+      setDoctorNotes(''); 
+      setSuggestedQuestions([]); 
+      setUploadedFiles([]); 
+      
+      // 4. Limpiar el blob de audio guardado
       audioRecorder.resetRecording();
+
+      if (isMobile) setIsSidebarOpen(false);
+  };
+
+  // MODIFICADO: handleNewNote con lógica de confirmación
+  const handleNewNote = () => {
+      // Regla: Si hay contenido "sucio" (input del usuario) Y NO se ha generado nota aún
+      const hasUnsavedInput = (transcript.trim().length > 0 || doctorNotes.trim().length > 0 || uploadedFiles.length > 0);
+      
+      // Si la nota YA fue generada, se asume guardada en historial, así que reseteamos sin preguntar
+      // Si NO ha sido generada pero hay input, preguntamos.
+      if (hasUnsavedInput && !generatedNote) {
+          setConfirmModal({ isOpen: true, type: 'new_note' });
+      } else {
+          performReset();
+      }
   };
 
   const verifyQuotaAccess = async (): Promise<boolean> => {
@@ -751,6 +688,8 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
           setHistory(prev => prev.filter(n => n.id !== confirmModal.itemId)); 
           if (viewingHistoryNoteId === confirmModal.itemId) { setGeneratedNote(''); setAlerts([]); setViewingHistoryNoteId(null); }
           await supabase.from('usage_logs').delete().eq('id', confirmModal.itemId);
+      } else if (confirmModal?.type === 'new_note') { // MODIFICADO: Manejo de nueva nota
+          performReset();
       }
       setConfirmModal({ isOpen: false, type: null });
   };
@@ -898,34 +837,28 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
 
         <div ref={scrollRef} className={`flex-grow overflow-y-auto custom-scrollbar px-4 pt-8 scroll-smooth w-full ${viewingHistoryNoteId ? 'pb-8' : 'pb-40'}`}>
             
-            {/* CORRECCIÓN DE UX (STREAMING VISIBLE): PRIORIZAR NOTA SOBRE LOADER */}
             {generatedNote ? (
-                <div className="max-w-3xl mx-auto animate-in fade-in slide-in-from-bottom-8 duration-500">
+                <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-8 duration-500 pb-20">
+                     
+                     {/* SECCIÓN 1: ALERTAS (Si existen) - Nuevo Estilo Minimalista */}
                      {alerts.length > 0 && (
-                        <div className="mb-8 p-1 rounded-2xl bg-gradient-to-r from-rose-400/50 to-orange-400/50 shadow-lg">
-                            <div className="bg-white dark:bg-[#0f1115] rounded-xl p-6">
-                                <h3 className="flex items-center text-rose-500 dark:text-rose-400 font-bold mb-4"><AlertTriangleIcon className="h-6 w-6 mr-2" /> {t('clinical_alerts_title')}</h3>
-                                <div className="grid gap-4">
-                                    {alerts.map((alert, idx) => (
-                                        <div key={idx} className="bg-rose-50 dark:bg-rose-500/5 p-4 rounded-xl border border-rose-100 dark:border-rose-500/10">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <span className="font-bold text-rose-600 dark:text-rose-300 text-xs uppercase bg-rose-100 dark:bg-rose-500/10 px-2 py-1 rounded tracking-wider">{alert.type}</span>
-                                                <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded border ${alert.severity === 'High' ? 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-200 border-rose-200 dark:border-rose-500/50' : 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-200 border-amber-200 dark:border-amber-500/50'}`}>{alert.severity}</span>
-                                            </div>
-                                            <p className="font-bold text-slate-800 dark:text-slate-200 mb-1 text-base">{alert.title}</p>
-                                            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{alert.details}</p>
-                                            <div className="mt-3 pt-3 border-t border-slate-200 dark:border-white/5 text-sm flex gap-2 items-start">
-                                                <span className="text-rose-500 dark:text-rose-400 font-bold whitespace-nowrap mt-0.5"><CheckCircleIcon className="h-4 w-4"/></span>
-                                                <span className="text-slate-600 dark:text-slate-300 italic">{alert.recommendation}</span>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
+                        <ClinicalAlertsViewer alerts={alerts} t={t} />
                      )}
-                     <FeedbackWidget userId={session?.user?.id} t={t} />
-                     <ClinicalNoteOutput note={generatedNote} t={t} />
+
+                     {/* SECCIÓN 2: FEEDBACK (Mantenemos widget existente) */}
+                     <div className="max-w-4xl mx-auto">
+                        <FeedbackWidget userId={session?.user?.id} t={t} />
+                     </div>
+
+                     {/* SECCIÓN 3: NOTA CLÍNICA - Nuevo Estilo Acordeón */}
+                     <ClinicalNoteViewer 
+                        note={generatedNote} 
+                        t={t}
+                        onSectionFeedback={(section, isPositive) => {
+                            // Aquí podrías loguear feedback granular a Supabase si quisieras
+                            console.log(`Feedback [${section}]: ${isPositive ? '👍' : '👎'}`);
+                        }}
+                     />
                 </div>
             ) : isLoading ? (
                 <div className="flex flex-col items-center justify-center mt-20 space-y-8">
@@ -969,6 +902,7 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
                 showAudioRecordedMessage={showAudioRecordedMessage}
                 onInputFocus={() => setIsInputFocused(true)} onInputBlur={() => setIsInputFocused(false)}
                 isInputFocused={isInputFocused}
+                hasGeneratedNote={!!generatedNote}
             />
         )}
       </main>
@@ -1082,11 +1016,22 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
          </div>
       )}
 
+      {/* MODAL DE CONFIRMACIÓN (ACTUALIZADO: Maneja 'new_note') */}
       {confirmModal.isOpen && (
              <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
                  <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center">
-                     <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{confirmModal?.type === 'logout' ? t('logout_modal_title') : confirmModal?.type === 'clear_history' ? t('clear_history_modal_title') : t('delete_note_modal_title')}</h3>
-                     <p className="text-center font-medium text-slate-600 dark:text-slate-300 text-base mb-8 leading-snug">{t(confirmModal?.type === 'logout' ? 'logout_confirm' : confirmModal?.type === 'clear_history' ? 'clear_history_confirm' : 'delete_note_confirm')}</p>
+                     <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+                        {confirmModal?.type === 'logout' ? t('logout_modal_title') : 
+                         confirmModal?.type === 'clear_history' ? t('clear_history_modal_title') : 
+                         confirmModal?.type === 'new_note' ? t('new_note_modal_title') :
+                         t('delete_note_modal_title')}
+                     </h3>
+                     <p className="text-center font-medium text-slate-600 dark:text-slate-300 text-base mb-8 leading-snug">
+                        {t(confirmModal?.type === 'logout' ? 'logout_confirm' : 
+                           confirmModal?.type === 'clear_history' ? 'clear_history_confirm' : 
+                           confirmModal?.type === 'new_note' ? 'new_note_confirm_text' :
+                           'delete_note_confirm')}
+                     </p>
                      <div className="flex gap-3 justify-center">
                          <button onClick={() => setConfirmModal({ isOpen: false, type: null })} className="px-5 py-2.5 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 text-sm font-medium border border-transparent transition-colors">{t('cancel_button')}</button>
                          <button onClick={executeConfirmation} className="px-5 py-2.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-sm font-bold shadow-lg shadow-rose-500/20 transition-transform active:scale-95">{t('confirm_button')}</button>
@@ -1119,11 +1064,8 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
 }
 
 // ============================================================================
-// FIX CRÍTICO: Componentes de Protección EXTRAÍDOS (Estabilidad)
+// COMPONENTES DE PROTECCIÓN (EXTRAÍDOS PARA ESTABILIDAD)
 // ============================================================================
-
-// Estos componentes deben estar FUERA de AppRoutes para no redefinirse en cada render.
-// Al ser estables, React no desmontará sus hijos (tu nota) cuando cambie el token.
 
 const RequireAuth = ({ children, session }: { children: React.ReactNode, session: Session | null }) => {
     if (!session) return <Navigate to="/login" replace />;
@@ -1151,9 +1093,6 @@ const AppRoutes = () => {
             setLoading(false);
         });
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            // Cuando cambia la pestaña, esto se dispara.
-            // Al usar componentes extraídos (RequireAuth/PublicOnly), React solo actualiza las props,
-            // NO desmonta el árbol entero. ¡Estado salvado!
             setSession(session);
         });
         return () => subscription.unsubscribe();

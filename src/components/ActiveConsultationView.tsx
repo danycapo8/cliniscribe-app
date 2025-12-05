@@ -1,5 +1,5 @@
 import React from 'react';
-import { SparklesIcon, LightbulbIcon, CheckCircleIcon } from './icons';
+import { LightbulbIcon, CheckCircleIcon } from './icons'; // SparklesIcon eliminado de imports porque ya no se usa aquí
 import { ExtendedProfile } from '../App';
 
 interface ActiveConsultationViewProps {
@@ -30,10 +30,8 @@ export const ActiveConsultationView: React.FC<ActiveConsultationViewProps> = ({
   if (!isRecording && !hasContent) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-center p-4 animate-in fade-in zoom-in-95 duration-500">
-        <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center mb-6 shadow-xl shadow-sky-200 dark:shadow-sky-900/20 relative group">
-            <div className="absolute inset-0 bg-white/20 rounded-3xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
-            <SparklesIcon className="h-10 w-10 text-white relative z-10" />
-        </div>
+        {/* ARQUITECTO: Icono Sparkles eliminado según solicitud */}
+        
         <h2 className="text-3xl font-black text-slate-800 dark:text-white tracking-tight mb-3">
             {t('greeting_morning')}, <span className="bg-clip-text text-transparent bg-gradient-to-r from-sky-600 to-indigo-600 dark:from-sky-400 dark:to-indigo-400">{profile.title} {profile.fullName?.split(' ')[0] || 'Doctor'}</span>.
         </h2>
@@ -45,31 +43,13 @@ export const ActiveConsultationView: React.FC<ActiveConsultationViewProps> = ({
   }
 
   // ESTADO 2: ACTIVO - Copiloto y Sugerencias
-  // CAMBIOS APLICADOS: justify-start (arriba), padding superior pequeño (pt-4) y gran padding inferior (pb-48)
   return (
-    <div className="w-full flex flex-col items-center justify-start pt-4 px-4 pb-48 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    // Ajustado padding superior (pt-12) para dar aire ya que quitamos el badge
+    <div className="w-full flex flex-col items-center justify-start pt-12 px-4 pb-48 animate-in fade-in slide-in-from-bottom-4 duration-500">
         
-        {/* INDICADOR VISUAL (Badge flotante) */}
-        <div className="mb-8 transform transition-all duration-300 hover:scale-105">
-            {isRecording ? (
-                <div className="flex items-center gap-3 bg-white dark:bg-slate-800 border border-emerald-100 dark:border-emerald-800/30 px-6 py-3 rounded-full shadow-lg shadow-emerald-100/50 dark:shadow-none">
-                    <span className="relative flex h-3 w-3">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                    </span>
-                    <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 tracking-wide uppercase">
-                        {t('listening_label')}...
-                    </span>
-                </div>
-            ) : (
-                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-transparent dark:border-slate-700">
-                    <span className="h-2 w-2 rounded-full bg-slate-400 dark:bg-slate-500"></span>
-                    <span className="text-xs font-bold uppercase tracking-wider">Edición Manual</span>
-                </div>
-            )}
-        </div>
+        {/* ARQUITECTO: Bloque "Indicador Visual" (Escuchando/Edición Manual) ELIMINADO completamente aquí */}
 
-        {/* ÁREA DE SUGERENCIAS */}
+        {/* ÁREA DE SUGERENCIAS (INTACTA) */}
         <div className="w-full max-w-xl">
             {suggestedQuestions.length === 0 ? (
                 <div className="flex justify-center">

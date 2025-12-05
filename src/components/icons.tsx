@@ -27,12 +27,19 @@ export const ChevronRightIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-// 🆕 AÑADIDO PARA CORREGIR ERROR EN ToolsMenu.tsx
 export const ChevronDownIcon = ({ className }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <path d="m6 9 6 6 6-6" />
   </svg>
 );
+
+// --- ESTE ES EL ICONO QUE FALTABA ---
+export const ChevronUpIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="m18 15-6-6-6 6" />
+  </svg>
+);
+// ------------------------------------
 
 export const MoreVerticalIcon = ({ className }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -100,7 +107,6 @@ export const UploadIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-// 🆕 AÑADIDO PARA CORREGIR ERROR EN SubscriptionDashboard.tsx
 export const CheckIcon = ({ className }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <polyline points="20 6 9 17 4 12" />
@@ -145,8 +151,6 @@ export const LockIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-// --- ICONOS CLÍNICOS ---
-
 export const SparklesIcon = ({ className }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
@@ -157,14 +161,12 @@ export const SparklesIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-// 🆕 AÑADIDO PARA CORREGIR ERROR EN ToolsMenu.tsx
 export const ActivityIcon = ({ className }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
   </svg>
 );
 
-// 🆕 AÑADIDO PARA CORREGIR ERROR EN ToolsMenu.tsx
 export const MicroscopeIcon = ({ className }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <path d="M6 18h8" />
