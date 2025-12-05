@@ -917,6 +917,40 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
          t={t}
       />
 
+      {/* MODAL TIP PRODUCTIVIDAD (RESTAURADO) */}
+      {showSplitTip && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setShowSplitTip(false)}>
+            <div className="bg-white dark:bg-[#0f172a] w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 relative" onClick={e => e.stopPropagation()}>
+                <button onClick={() => setShowSplitTip(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"><XIcon className="h-5 w-5"/></button>
+                
+                <div className="flex items-center gap-3 mb-4 text-emerald-600 dark:text-emerald-400">
+                    <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg"><SplitIcon className="h-6 w-6"/></div>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">{t('tip_productivity_title')}</h3>
+                </div>
+                
+                <div className="space-y-4 text-sm text-slate-600 dark:text-slate-300">
+                    <p>{t('tip_productivity_desc_1')}</p>
+                    <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
+                        <p className="font-bold text-slate-700 dark:text-slate-200 mb-2">{t('tip_productivity_desc_2_win')}</p>
+                        <ul className="space-y-2 list-disc pl-4 marker:text-emerald-500">
+                            <li>{t('tip_productivity_step_1')}</li>
+                            <li>{t('tip_productivity_step_2')}</li>
+                            <li>{t('tip_productivity_step_3')}</li>
+                        </ul>
+                    </div>
+                    <p className="italic text-xs opacity-80">{t('tip_productivity_desc_3_final')}</p>
+                </div>
+                <Button 
+                variant="brand" 
+                fullWidth 
+                onClick={() => setShowSplitTip(false)} 
+                className="mt-6 shadow-xl shadow-indigo-500/20">
+                {t('tip_productivity_button')}
+                </Button>
+            </div>
+        </div>
+      )}
+
       {showProfile && (
          <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setShowProfile(false)}>
             <div className="bg-white dark:bg-[#0f172a] w-full max-w-4xl rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden relative flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
@@ -1016,7 +1050,6 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
          </div>
       )}
 
-      {/* MODAL DE CONFIRMACIÓN (ACTUALIZADO: Maneja 'new_note') */}
       {confirmModal.isOpen && (
              <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
                  <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center">
