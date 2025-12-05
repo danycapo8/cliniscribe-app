@@ -226,39 +226,56 @@ export function getChileSuggestionsPrompt(
   context: ConsultationContext,
   profile: Profile
 ): string {
-  // Limpieza agresiva para evitar romper JSON
-  const safeTranscript = (transcript || "")
-    .slice(-2500) // Solo últimos 2500 caracteres
-    .replace(/["\n\r\t]/g, ' ') // Eliminar caracteres problemáticos
-    .replace(/\s+/g, ' ') // Normalizar espacios
-    .trim();
+  
+  return `
+ROL: Copiloto Clínico Experto (Sugerencias en Vivo).
+OBJETIVO: Guiar la consulta detectando "huecos" de información vital según la fase actual, SIN REPETIR lo ya preguntado.
 
-  return `You are a medical assistant. Generate 2-3 missing clinical questions based on the consultation.
+CONTEXTO PACIENTE:
+- Edad: ${context.age} años.
+- Sexo: ${context.sex}.
 
-CRITICAL RULES:
-1. Output ONLY a JSON array
-2. NO markdown code blocks
-3. NO explanations or preamble
-4. NO text before or after the JSON
+TRANSCRIPCIÓN EN TIEMPO REAL:
+"""
+${transcript}
+"""
 
-Patient context:
-- Age: ${context.age} years
-- Sex: ${context.sex}
-- Specialty: ${profile.specialty}
+═══════════════════════════════════════════════════════════════
+ALGORITMO DE SUGERENCIAS SECUENCIAL (Detecta la Fase)
+═══════════════════════════════════════════════════════════════
 
-Transcript summary: ${safeTranscript}
+1. **FASE 1: APERTURA Y CARACTERIZACIÓN (Prioridad ALTA si falta info)**
+   - Si el paciente menciona un síntoma (ej: Dolor, Tos), ¿se ha caracterizado completamente (ALICIA/OPQRST)?
+   - *Sugerir:* Tiempo de evolución, Intensidad, Gatillantes, Síntomas acompañantes.
+   - *NO sugerir:* Si el paciente ya lo dijo espontáneamente.
 
-Required JSON format:
+2. **FASE 2: ANTECEDENTES Y SEGURIDAD (Prioridad MEDIA)**
+   - Una vez claro el síntoma, busca activamente:
+     * 🛡️ **Alergias** (Crítico si no se ha mencionado).
+     * 💊 **Fármacos en uso** (Para evitar interacciones).
+     * 🧬 **Mórbidos / Familiares** relevantes al cuadro.
+     * 🤰 **Embarazo** (Si es mujer en edad fértil y hay dolor abdominal o indicación de fármacos).
+
+3. **FASE 3: BANDERAS ROJAS Y EXAMEN (Prioridad MEDIA)**
+   - Sugiere descartar gravedad según el síntoma principal.
+   - Ej: Cefalea -> Rigidez nuca / Fiebre. Lumbalgia -> Parestesias.
+
+4. **FASE 4: CIERRE Y GESTIÓN (Prioridad BAJA)**
+   - Si se percibe cierre de consulta:
+     * 📝 **Licencia Médica / Certificado**.
+     * ❓ **Dudas del paciente**.
+
+REGLAS DE ORO (ANTI-REDUNDANCIA):
+- **LECTURA ACTIVA:** Si la transcripción dice "Soy alérgico a la penicilina", **PROHIBIDO** sugerir "¿Preguntar alergias?".
+- **MICRO-COPY:** Textos de máximo 4-5 palabras. Imperativo. Ej: "🔍 Indagar Alergias", "⚠️ ¿Fiebre asociada?".
+
+SALIDA JSON ARRAY (Min 2, Max 3 sugerencias):
 [
-  {"q": "Question in Spanish?", "c": "CATEGORY"}
+  {"q": "Texto Sugerencia", "c": "DIAGNOSTIC|RED FLAG|HISTORY|MANAGEMENT"}
 ]
 
-Valid categories: HISTORY, RED FLAG, DIAGNOSTIC, MANAGEMENT
-
-Example valid output:
-[{"q": "¿Tiene alergias a medicamentos?", "c": "RED FLAG"}, {"q": "¿Desde cuándo tiene los síntomas?", "c": "HISTORY"}]
-
-Generate your JSON array now:`.trim();
+Genera las sugerencias para ESTE momento exacto:
+`.trim();
 }
 
 // ============================================================================
