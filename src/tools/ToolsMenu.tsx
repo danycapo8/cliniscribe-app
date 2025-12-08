@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import ReactDOM from 'react-dom'; // Import necesario para el Portal
+import ReactDOM from 'react-dom';
 import { 
   FileTextIcon, 
   StethoscopeIcon, 
@@ -10,8 +10,6 @@ import {
 } from '../components/icons'; 
 import { SubscriptionTier } from '../types/subscription';
 import { CertificateType } from '../types/certificates';
-
-// --- DEFINICIÓN DE ESTRUCTURA JERÁRQUICA ---
 
 interface ToolItem {
   id: string;
@@ -45,12 +43,10 @@ export const ToolsMenu: React.FC<Props> = ({
   variant = 'sidebar',
   t
 }) => {
-  // ARQUITECTO: Aquí estaba el error. Cambiado a 'false' para iniciar contraído.
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({
     'certs_group': false 
   });
 
-  // Estado para controlar qué ítem está bajo el mouse (necesario para el Portal)
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   const TOOL_CATEGORIES: (ToolCategory | ToolItem)[] = useMemo(() => [
@@ -59,10 +55,11 @@ export const ToolsMenu: React.FC<Props> = ({
       label: t('tools_certificates') || 'Certificados',
       icon: <FileTextIcon className="w-4 h-4" />,
       items: [
-        { id: 'certificate', subType: 'reposo', label: t('cert_sick_leave'), minTier: 'free' },
-        { id: 'certificate', subType: 'alta_deportiva', label: t('cert_sports'), minTier: 'free' },
-        { id: 'certificate', subType: 'buena_salud', label: t('cert_health'), minTier: 'free' },
-        { id: 'certificate', subType: 'aptitud_laboral', label: t('cert_work'), minTier: 'free' },
+        { id: 'certificate', subType: 'reposo', label: 'Reposo', minTier: 'free' },
+        { id: 'certificate', subType: 'escolar', label: 'Certificado Escolar', minTier: 'free' },
+        { id: 'certificate', subType: 'buena_salud', label: 'Buena Salud', minTier: 'free' },
+        { id: 'certificate', subType: 'alta_deportiva', label: 'Aptitud Deportiva', minTier: 'free' },
+        { id: 'certificate', subType: 'aptitud_laboral', label: 'Aptitud Laboral', minTier: 'free' },
       ]
     },
     { 
@@ -105,11 +102,9 @@ export const ToolsMenu: React.FC<Props> = ({
     const isLocked = !hasAccess(item.minTier);
     const isMaxFeature = item.specialBadge === 'MAX';
     
-    // CAMBIO 1: Eliminamos tooltip si es feature MAX (para evitar ruido visual)
     const finalTooltipText = isMaxFeature ? null : (isLocked ? t('tooltip_plan_max') : item.tooltip);
     const showTooltip = !!finalTooltipText;
     
-    // Identificador único para el hover
     const uniqueId = item.id + (item.subType || '');
 
     return (
@@ -135,16 +130,14 @@ export const ToolsMenu: React.FC<Props> = ({
                 ? 'bg-gradient-to-r from-violet-50/50 to-fuchsia-50/50 dark:from-violet-900/10 dark:to-fuchsia-900/10 hover:from-violet-100 hover:to-fuchsia-100 dark:hover:from-violet-900/20 dark:hover:to-fuchsia-900/20 border border-violet-100 dark:border-violet-900/30'
                 : 'bg-white dark:bg-transparent hover:bg-slate-50 dark:hover:bg-white/5 border border-transparent hover:border-slate-100 dark:hover:border-slate-800'
           }
-          ${/* CAMBIO 2: Cursor pointer siempre para invitar al clic (modal de venta) */ ''}
           ${isLocked ? 'opacity-60 grayscale-[0.8]' : ''} cursor-pointer
         `}
       >
-        {/* --- TOOLTIP CON PORTAL (Solo si es Sidebar y está hover) --- */}
         {showTooltip && hoveredId === uniqueId && variant === 'sidebar' && ReactDOM.createPortal(
             <div 
                 className="fixed px-3 py-2 bg-[#0f172a] border border-slate-700 text-white text-[10px] font-bold tracking-wide rounded-xl shadow-2xl z-[9999] whitespace-nowrap animate-in fade-in zoom-in-95 duration-200 pointer-events-none"
                 style={{ 
-                    left: '18.5rem', // Posición fija saliendo del sidebar
+                    left: '18.5rem', 
                     marginTop: '4px',
                 }}
                 ref={(el) => {
@@ -156,14 +149,12 @@ export const ToolsMenu: React.FC<Props> = ({
                     }
                 }}
             >
-                {/* Flecha visual (simulada) */}
                 <div className="absolute top-3 right-full border-4 border-transparent border-r-[#0f172a]"></div>
                 {finalTooltipText}
             </div>,
             document.body
         )}
 
-        {/* --- TOOLTIP NORMAL (Para Grid u otros contextos) --- */}
         {showTooltip && variant !== 'sidebar' && (
              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-3 py-2 bg-[#0f172a] border border-slate-700 text-white text-[10px] font-bold tracking-wide rounded-xl shadow-2xl z-[50] whitespace-nowrap animate-in fade-in zoom-in-95 duration-200">
                 {finalTooltipText}
@@ -198,7 +189,6 @@ export const ToolsMenu: React.FC<Props> = ({
                     </span>
                 )}
                 
-                {/* CAMBIO 3: Candado visible incluso en features MAX si están bloqueadas */}
                 {isLocked && (
                     <LockIcon className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-2" />
                 )}

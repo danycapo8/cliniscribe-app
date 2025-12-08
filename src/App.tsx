@@ -179,7 +179,6 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
   const [history, setHistory] = useState<HistoricalNote[]>([]);
   const [viewingHistoryNoteId, setViewingHistoryNoteId] = useState<string | null>(null);
   
-  // MODIFICADO: Agregado 'new_note' al tipo de confirmModal
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; type: 'clear_history' | 'delete_note' | 'logout' | 'new_note' | null; itemId?: string; }>({ isOpen: false, type: null }); 
   
   const [suggestedQuestions, setSuggestedQuestions] = useState<any[]>([]);
@@ -393,18 +392,13 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
 
   // MODIFICADO: performReset ahora detiene activamente la grabación y el reconocimiento
   const performReset = () => {
-      // 1. Detener el Reconocimiento de Voz (Speech to Text)
       if (recognitionRef.current) {
           isUserStoppingRef.current = true; // Importante: Evita que se reinicie automáticamente
           recognitionRef.current.stop();
       }
-
-      // 2. Detener la Grabación de Audio (MediaRecorder)
       if (audioRecorder.isRecording) {
           audioRecorder.stopRecording();
       }
-
-      // 3. Limpiar Estados de Datos
       setViewingHistoryNoteId(null); 
       setGeneratedNote(''); 
       setAlerts([]); 
@@ -414,7 +408,6 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
       setSuggestedQuestions([]); 
       setUploadedFiles([]); 
       
-      // 4. Limpiar el blob de audio guardado
       audioRecorder.resetRecording();
 
       if (isMobile) setIsSidebarOpen(false);
@@ -422,11 +415,8 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
 
   // MODIFICADO: handleNewNote con lógica de confirmación
   const handleNewNote = () => {
-      // Regla: Si hay contenido "sucio" (input del usuario) Y NO se ha generado nota aún
       const hasUnsavedInput = (transcript.trim().length > 0 || doctorNotes.trim().length > 0 || uploadedFiles.length > 0);
       
-      // Si la nota YA fue generada, se asume guardada en historial, así que reseteamos sin preguntar
-      // Si NO ha sido generada pero hay input, preguntamos.
       if (hasUnsavedInput && !generatedNote) {
           setConfirmModal({ isOpen: true, type: 'new_note' });
       } else {
@@ -850,7 +840,7 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
                         <FeedbackWidget userId={session?.user?.id} t={t} />
                      </div>
 
-                     {/* SECCIÓN 3: NOTA CLÍNICA - Nuevo Estilo Acordeón */}
+                     {/* SECCIÓN 3: NOTA CLÍNICA - Nuevo Estilo Acordeón (CON EDICIÓN ACTIVADA) */}
                      <ClinicalNoteViewer 
                         note={generatedNote} 
                         t={t}
@@ -858,6 +848,7 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
                             // Aquí podrías loguear feedback granular a Supabase si quisieras
                             console.log(`Feedback [${section}]: ${isPositive ? '👍' : '👎'}`);
                         }}
+                        onNoteChange={setGeneratedNote} // <--- NUEVA PROP PARA EDICIÓN
                      />
                 </div>
             ) : isLoading ? (
@@ -917,7 +908,7 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
          t={t}
       />
 
-      {/* MODAL TIP PRODUCTIVIDAD (RESTAURADO) */}
+      {/* MODAL TIP PRODUCTIVIDAD (RESTAURADO CON BUTTON) */}
       {showSplitTip && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setShowSplitTip(false)}>
             <div className="bg-white dark:bg-[#0f172a] w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 relative" onClick={e => e.stopPropagation()}>
@@ -940,12 +931,14 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
                     </div>
                     <p className="italic text-xs opacity-80">{t('tip_productivity_desc_3_final')}</p>
                 </div>
+
                 <Button 
-                variant="brand" 
-                fullWidth 
-                onClick={() => setShowSplitTip(false)} 
-                className="mt-6 shadow-xl shadow-indigo-500/20">
-                {t('tip_productivity_button')}
+                    variant="brand" 
+                    fullWidth 
+                    onClick={() => setShowSplitTip(false)} 
+                    className="mt-6 shadow-xl shadow-indigo-500/20"
+                >
+                    {t('tip_productivity_button')}
                 </Button>
             </div>
         </div>
@@ -1050,6 +1043,7 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
          </div>
       )}
 
+      {/* MODAL DE CONFIRMACIÓN (ACTUALIZADO: Maneja 'new_note') */}
       {confirmModal.isOpen && (
              <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
                  <div className="bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center">

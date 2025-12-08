@@ -1,4 +1,21 @@
-export type CertificateType = 'reposo' | 'alta_deportiva' | 'buena_salud' | 'aptitud_laboral' | 'asistencia';
+// src/types/certificates.ts
+
+// 1. AQUÍ AGREGAMOS 'asistencia' AL FINAL
+export type CertificateType = 
+  | 'reposo' 
+  | 'escolar' 
+  | 'buena_salud' 
+  | 'alta_deportiva' 
+  | 'aptitud_laboral' 
+  | 'asistencia'; // <--- ESTO ES LO QUE FALTA
+
+// 2. Definimos los subtipos para la lógica inteligente
+export type CertificateSubtype = 
+  | 'rest'        
+  | 'exemption'   
+  | 'release'     
+  | 'restriction' 
+  | 'general';    
 
 export interface CertificateData {
   diagnosis: string;
@@ -7,8 +24,11 @@ export interface CertificateData {
   startDate?: string;
   indications?: string;
   activity?: string;
-  patientName?: string; // Nuevo campo
-  patientId?: string;   // Nuevo campo
+  patientName?: string;
+  patientId?: string;
+  observations?: string;
+  pronoun?: 'el' | 'ella';
+  certificateSubtype?: CertificateSubtype;
 }
 
 export interface CertificateConfig {
@@ -18,35 +38,42 @@ export interface CertificateConfig {
   icon: string;
 }
 
+// 3. Agregamos la configuración visual para 'asistencia'
 export const CERTIFICATE_OPTIONS: CertificateConfig[] = [
   {
     type: 'reposo',
-    title: 'Certificado de Reposo',
-    description: 'Justificación de días de descanso por patología aguda.',
+    title: 'Licencia / Reposo',
+    description: 'Justificación de ausencia total laboral o escolar.',
     icon: 'bed'
+  },
+  {
+    type: 'escolar',
+    title: 'Certificado Escolar',
+    description: 'Para inasistencias, altas o eximir de educación física.',
+    icon: 'school'
+  },
+  {
+    type: 'buena_salud',
+    title: 'Buena Salud',
+    description: 'Acredita salud compatible para trámites.',
+    icon: 'check'
   },
   {
     type: 'alta_deportiva',
     title: 'Aptitud Deportiva',
-    description: 'Certifica salud compatible con actividad física.',
+    description: 'Autoriza práctica deportiva.',
     icon: 'activity'
-  },
-  {
-    type: 'buena_salud',
-    title: 'Buena Salud General',
-    description: 'Certificado estándar para trámites generales.',
-    icon: 'check'
   },
   {
     type: 'aptitud_laboral',
     title: 'Aptitud Laboral',
-    description: 'Salud compatible con cargo o función específica.',
+    description: 'Evalúa compatibilidad con un cargo.',
     icon: 'briefcase'
   },
   {
     type: 'asistencia',
-    title: 'Certificado de Asistencia',
-    description: 'Constancia de asistencia a consulta médica.',
+    title: 'Constancia de Asistencia',
+    description: 'Acredita que el paciente vino a consulta.',
     icon: 'calendar'
   }
 ];

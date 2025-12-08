@@ -1,9 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   ChevronRightIcon, 
   CopyIcon, 
-  CheckIcon 
+  CheckIcon,
+  QuillIcon // Icono visual para indicar que es editable
 } from './icons';
+import { searchCIE10 } from '../services/cie10Service';
 
 // Tipos para las secciones parseadas
 interface NoteSectionData {
@@ -15,7 +17,9 @@ interface NoteSectionData {
 interface Props {
   note: string;
   t: (key: string) => string;
-  // onSectionFeedback eliminado para limpiar la interfaz por sección
+  onSectionFeedback?: (section: string, isPositive: boolean) => void;
+  // Nueva prop para comunicar cambios hacia arriba
+  onNoteChange: (newNote: string) => void;
 }
 
 // Sub-componente para cada Fila del Acordeón
@@ -23,9 +27,30 @@ const NoteSectionRow: React.FC<{
   data: NoteSectionData;
   t: (key: string) => string;
   defaultExpanded?: boolean;
-}> = ({ data, t, defaultExpanded = true }) => {
+  onUpdateContent: (newContent: string) => void; // Callback local
+}> = ({ data, t, defaultExpanded = true, onUpdateContent }) => {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [isCopied, setIsCopied] = useState(false);
+  
+  // ESTADO DE EDICIÓN
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(data.content);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Sincronizar estado si la data externa cambia (ej: regeneración)
+  useEffect(() => {
+    setEditValue(data.content);
+  }, [data.content]);
+
+  // Auto-foco al entrar en modo edición
+  useEffect(() => {
+    if (isEditing && textareaRef.current) {
+        textareaRef.current.focus();
+        // Ajuste de altura automático básico
+        textareaRef.current.style.height = 'auto';
+        textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    }
+  }, [isEditing]);
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -34,10 +59,22 @@ const NoteSectionRow: React.FC<{
     setTimeout(() => setIsCopied(false), 2000);
   };
 
-  // Limpieza visual del contenido Markdown para mostrarlo limpio
+  const handleSave = () => {
+      setIsEditing(false);
+      // Solo actualizamos si hubo cambios reales
+      if (editValue.trim() !== data.content.trim()) {
+          onUpdateContent(editValue);
+      }
+  };
+
+  const handleSearch = async (texto: string) => {
+   const resultados = await searchCIE10(texto);
+   console.log(resultados); // [{ code: "J00", description: "Rinofaringitis Aguda..." }]
+}
+
+  // Limpieza visual del contenido Markdown para mostrarlo limpio (Modo Lectura)
   const cleanContent = (text: string) => {
     return text.split('\n').map((line, i) => {
-      // Renderizar negritas simples (**texto**)
       const parts = line.split(/(\*\*.*?\*\*)/g);
       return (
         <div key={i} className={`min-h-[1.5em] ${line.startsWith('-') ? 'pl-4' : ''}`}>
@@ -56,7 +93,7 @@ const NoteSectionRow: React.FC<{
     <div className="border-b border-slate-100 dark:border-slate-800 last:border-0">
       {/* HEADER DE LA SECCIÓN */}
       <div 
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={() => !isEditing && setIsExpanded(!isExpanded)}
         className="group flex items-center justify-between py-4 px-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 transition-colors rounded-lg select-none"
       >
         <div className="flex items-center gap-3">
@@ -68,9 +105,15 @@ const NoteSectionRow: React.FC<{
           </h3>
         </div>
 
-        {/* ACCIONES (Solo visibles en hover o siempre en móvil) */}
-        <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-          {/* Copy Button */}
+        {/* ACCIONES */}
+        <div className="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+          {/* Indicador visual de edición */}
+          {!isEditing && (
+             <span className="text-[10px] text-slate-300 dark:text-slate-600 mr-2 flex items-center gap-1">
+                <QuillIcon className="h-3 w-3" /> Clic para editar
+             </span>
+          )}
+          
           <button 
             onClick={handleCopy}
             className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium border transition-all ${
@@ -85,21 +128,45 @@ const NoteSectionRow: React.FC<{
         </div>
       </div>
 
-      {/* CONTENIDO (Collapsible) */}
+      {/* CONTENIDO (Editable vs Lectura) */}
       {isExpanded && (
         <div className="pl-8 pr-4 pb-6 animate-in slide-in-from-top-2 duration-200">
-          <div className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-normal">
-            {cleanContent(data.content)}
-          </div>
+          
+          {isEditing ? (
+              // MODO EDICIÓN: Textarea simple
+              <textarea
+                  ref={textareaRef}
+                  value={editValue}
+                  onChange={(e) => {
+                      setEditValue(e.target.value);
+                      // Auto-resize
+                      e.target.style.height = 'auto';
+                      e.target.style.height = e.target.scrollHeight + 'px';
+                  }}
+                  onBlur={handleSave} // Guardar al salir del foco
+                  className="w-full bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-700/30 rounded-lg p-3 text-sm font-mono text-slate-800 dark:text-slate-200 leading-relaxed outline-none focus:ring-2 focus:ring-amber-500/20 resize-none overflow-hidden"
+                  spellCheck={false}
+              />
+          ) : (
+              // MODO LECTURA: Div formateado con clic para editar
+              <div 
+                onClick={() => { setIsEditing(true); }}
+                className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-normal cursor-text hover:bg-slate-50 dark:hover:bg-white/5 p-2 -ml-2 rounded-lg transition-colors border border-transparent hover:border-slate-100 dark:hover:border-slate-800"
+                title="Haz clic para editar este texto"
+              >
+                {cleanContent(data.content)}
+              </div>
+          )}
+          
         </div>
       )}
     </div>
   );
 };
 
-export const ClinicalNoteViewer: React.FC<Props> = ({ note, t }) => {
+export const ClinicalNoteViewer: React.FC<Props> = ({ note, t, onSectionFeedback, onNoteChange }) => {
   
-  // Lógica de parsing extraída y mejorada
+  // Parsear nota a secciones
   const parsedSections = useMemo(() => {
     if (!note) return [];
     
@@ -110,7 +177,6 @@ export const ClinicalNoteViewer: React.FC<Props> = ({ note, t }) => {
 
     const flush = () => {
       if (currentTitle && currentBuffer.length > 0) {
-        // Filtrar líneas vacías al inicio y final
         const content = currentBuffer.join('\n').trim();
         if (content) {
           sections.push({
@@ -124,21 +190,33 @@ export const ClinicalNoteViewer: React.FC<Props> = ({ note, t }) => {
     };
 
     lines.forEach(line => {
-      // Detectar headers Markdown (## Título)
       if (line.trim().startsWith('## ')) {
         flush();
         currentTitle = line.replace('## ', '').trim();
       } else {
-        // Ignorar bloques JSON o marcadores internos
         if (!line.includes('&&&') && !line.includes('```json')) {
           currentBuffer.push(line);
         }
       }
     });
-    flush(); // Última sección
+    flush(); 
 
     return sections;
   }, [note]);
+
+  // Función crítica: Reconstruir la nota completa cuando se edita una sección
+  const handleSectionUpdate = (sectionId: string, newContent: string) => {
+      // Reconstruimos el string Markdown completo
+      const newFullNote = parsedSections.map(section => {
+          if (section.id === sectionId) {
+              return `## ${section.title}\n${newContent}`;
+          }
+          return `## ${section.title}\n${section.content}`;
+      }).join('\n\n');
+
+      // Notificamos a la App principal para que actualice el estado global
+      onNoteChange(newFullNote);
+  };
 
   if (!note) return null;
 
@@ -150,6 +228,7 @@ export const ClinicalNoteViewer: React.FC<Props> = ({ note, t }) => {
             key={section.id} 
             data={section} 
             t={t} 
+            onUpdateContent={(newContent) => handleSectionUpdate(section.id, newContent)}
           />
         ))}
       </div>

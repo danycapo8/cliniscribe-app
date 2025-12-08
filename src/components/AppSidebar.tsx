@@ -1,7 +1,9 @@
+// src/components/AppSidebar.tsx
+
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
 import { 
-  QuillIcon, SparklesIcon, ChevronLeftIcon, TrashIcon, 
+  QuillIcon, ChevronLeftIcon, TrashIcon, 
   LogOutIcon, UserIcon, NotesIcon 
 } from './icons';
 import { ToolsMenu } from '../tools/ToolsMenu';
@@ -95,7 +97,6 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                         }} 
                         className="w-full py-2.5 px-4 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:opacity-90 shadow-md hover:shadow-lg flex items-center justify-center gap-2 text-sm font-bold transition-all group"
                     >
-                        <SparklesIcon className="h-4 w-4 text-sky-400 dark:text-sky-600"/>
                         <span>{t('new_note_button')}</span>
                     </button>
                 </div>

@@ -1,7 +1,8 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { 
   XIcon, UploadIcon, MicrophoneIcon, StopIcon, SparklesIcon, UserIcon,
-  ChevronLeftIcon, StethoscopeIcon, VideoIcon, ChevronDownIcon, ChevronUpIcon, CheckIcon
+  ChevronLeftIcon, StethoscopeIcon, VideoIcon, ChevronDownIcon, ChevronUpIcon, CheckIcon,
+  QuillIcon // <--- 1. Importamos el isotipo
 } from './icons';
 import { Button } from './Button';
 import { ConsultationContext } from '../services/types/gemini.types';
@@ -28,7 +29,7 @@ interface PatientInputBarProps {
   onInputBlur: () => void;
   isInputFocused: boolean;
   focusTrigger?: number; 
-  hasGeneratedNote?: boolean; // <--- NUEVA PROP
+  hasGeneratedNote?: boolean; 
 }
 
 // --- MICRO-COMPONENTE DE TOOLTIP ---
@@ -74,7 +75,7 @@ export const PatientInputBar: React.FC<PatientInputBarProps> = ({
   uploadedFiles, onRemoveFile, onAddFiles, t, isMobile,
   showAudioRecordedMessage, onInputFocus, onInputBlur, isInputFocused,
   focusTrigger,
-  hasGeneratedNote = false // <--- VALOR DEFAULT
+  hasGeneratedNote = false 
 }) => {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -409,7 +410,8 @@ export const PatientInputBar: React.FC<PatientInputBarProps> = ({
                                         }
                                     `}
                                 >
-                                    <SparklesIcon className="h-4 w-4 fill-current"/>
+                                    {/* 2. Reemplazamos SparklesIcon por QuillIcon (isotipo) */}
+                                    <QuillIcon className="h-4 w-4"/>
                                     <span>
                                         {hasGeneratedNote 
                                             ? (t('edit_note_button') || "Editar Nota") 
