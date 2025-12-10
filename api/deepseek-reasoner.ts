@@ -41,8 +41,8 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: "deepseek-reasoner",
         messages,
-        temperature: 0.2,
-        max_tokens: 1024
+        temperature: 0.1, // Bajamos temperatura para evitar respuestas vacías erráticas
+        max_tokens: 4000  // Aumentamos tokens para el razonamiento
       })
     });
 
@@ -56,9 +56,18 @@ export default async function handler(req, res) {
     }
 
     const data = await response.json();
+    const message = data.choices?.[0]?.message;
 
-    if (!data.choices?.[0]?.message?.content) {
-      console.error("❌ DeepSeek Reasoner devolvió respuesta sin contenido:", data);
+    // --- CORRECCIÓN CRÍTICA AQUÍ ---
+    // Si 'content' está vacío pero 'reasoning_content' tiene datos, usamos el reasoning como respuesta.
+    if ((!message?.content || message.content === "") && message?.reasoning_content) {
+        console.warn("⚠️ DeepSeek devolvió 'content' vacío. Usando 'reasoning_content' como fallback.");
+        // Movemos el razonamiento al contenido para que el frontend lo lea sin cambios
+        message.content = message.reasoning_content;
+    }
+
+    if (!message?.content) {
+      console.error("❌ DeepSeek Reasoner devolvió respuesta totalmente vacía:", data);
       return res.status(500).json({
         error: 'Empty response from DeepSeek Reasoner',
         raw_response: data

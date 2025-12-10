@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { 
   XIcon, UploadIcon, MicrophoneIcon, StopIcon, SparklesIcon, UserIcon,
   ChevronLeftIcon, StethoscopeIcon, VideoIcon, ChevronDownIcon, ChevronUpIcon, CheckIcon,
-  QuillIcon // <--- 1. Importamos el isotipo
+  QuillIcon 
 } from './icons';
 import { Button } from './Button';
 import { ConsultationContext } from '../services/types/gemini.types';
@@ -206,11 +206,9 @@ export const PatientInputBar: React.FC<PatientInputBarProps> = ({
       return t('tooltip_generate_active');
   };
 
-  // Helper para mostrar etiqueta de sexo
   const getSexLabel = () => {
       if (!context.sex) return t('patient_sex') || "Sexo";
       const val = context.sex.toLowerCase();
-      // Verificamos claves
       if (val === 'male' || val === 'masculino' || val === 'homem') return t('sex_male') || "Hombre";
       if (val === 'female' || val === 'femenino' || val === 'mulher') return t('sex_female') || "Mujer";
       return t('sex_other') || "Otro";
@@ -232,8 +230,11 @@ export const PatientInputBar: React.FC<PatientInputBarProps> = ({
             {/* BARRA PRINCIPAL */}
             <div className={`bg-white dark:bg-[#1e1f20] border border-slate-200 dark:border-white/10 shadow-2xl shadow-slate-200/50 dark:shadow-black/50 transition-all duration-300 flex flex-col rounded-3xl ${isRecording ? 'ring-2 ring-emerald-500/50' : 'focus-within:ring-2 focus-within:ring-sky-500/50'}`}>
                 
-                {/* 1. DATOS PACIENTE - CORRECCIÓN: Z-50 y flex-wrap */}
-                <div id="tour-patient-data" className="flex flex-wrap items-center gap-2 px-2 sm:px-4 pt-3 pb-1 shrink-0 relative z-50 border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-black/20 rounded-t-3xl">
+                {/* ARQUITECTO FIX Z-INDEX: 
+                   1. Bajamos el Z-index de la barra de datos a 'z-40' (antes era 50).
+                   2. Esto permite que la barra de acciones (z-50) se superponga.
+                */}
+                <div id="tour-patient-data" className="flex flex-wrap items-center gap-2 px-2 sm:px-4 pt-3 pb-1 shrink-0 relative z-40 border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-black/20 rounded-t-3xl">
                     <div className="relative group shrink-0">
                         <input type="number" value={context.age} onChange={(e) => setContext({...context, age: e.target.value})} 
                             placeholder={t('patient_age')}
@@ -241,7 +242,7 @@ export const PatientInputBar: React.FC<PatientInputBarProps> = ({
                         />
                     </div>
                     
-                    {/* CUSTOM SEX SELECTOR REFORZADO */}
+                    {/* SEX SELECTOR */}
                     <div className="relative shrink-0" ref={sexMenuRef}>
                         <button 
                             type="button"
@@ -253,9 +254,7 @@ export const PatientInputBar: React.FC<PatientInputBarProps> = ({
                         </button>
                         
                         {showSexMenu && (
-                            // Z-INDEX 9999 para asegurar visibilidad total sobre todo lo demás
                             <div className="absolute top-full left-0 mt-1 w-full min-w-[120px] bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-[9999] animate-in fade-in zoom-in-95 overflow-hidden flex flex-col py-1">
-                                {/* USAMOS onMouseDown AQUI */}
                                 <button type="button" onMouseDown={(e) => handleSexSelect(e, 'female')} className={`px-3 py-2 text-left text-xs hover:bg-slate-50 dark:hover:bg-slate-700 transition ${context.sex === 'female' ? 'text-sky-600 font-bold bg-sky-50/50' : 'text-slate-600 dark:text-slate-300'}`}>{t('sex_female') || "Mujer"}</button>
                                 <button type="button" onMouseDown={(e) => handleSexSelect(e, 'male')} className={`px-3 py-2 text-left text-xs hover:bg-slate-50 dark:hover:bg-slate-700 transition ${context.sex === 'male' ? 'text-sky-600 font-bold bg-sky-50/50' : 'text-slate-600 dark:text-slate-300'}`}>{t('sex_male') || "Hombre"}</button>
                                 <button type="button" onMouseDown={(e) => handleSexSelect(e, 'other')} className={`px-3 py-2 text-left text-xs hover:bg-slate-50 dark:hover:bg-slate-700 transition ${context.sex === 'other' ? 'text-sky-600 font-bold bg-sky-50/50' : 'text-slate-600 dark:text-slate-300'}`}>{t('sex_other') || "Otro"}</button>
@@ -273,7 +272,7 @@ export const PatientInputBar: React.FC<PatientInputBarProps> = ({
                     </div>
                 </div>
 
-                {/* 2. TEXT AREA COMPACTA */}
+                {/* 2. TEXT AREA */}
                 <div className="px-4 py-3 relative flex-grow flex flex-col min-h-0 z-10">
                     <textarea 
                         ref={textareaRef} id="tour-text-area" value={doctorNotes} 
@@ -284,8 +283,11 @@ export const PatientInputBar: React.FC<PatientInputBarProps> = ({
                     />
                 </div>
 
-                {/* 3. BARRA ACCIONES - Z-20 se mantiene, asegurando que el menú (hijo de z-50) esté encima */}
-                <div className="px-2 pb-2 flex justify-between items-center shrink-0 mt-auto z-20 relative">
+                {/* ARQUITECTO FIX Z-INDEX: 
+                   3. Aumentamos el Z-index de la barra de acciones a 'z-50' (antes 20).
+                   Esto asegura que cualquier hijo (el menú de micrófono) renderice ENCIMA de la barra de datos (z-40).
+                */}
+                <div className="px-2 pb-2 flex justify-between items-center shrink-0 mt-auto z-50 relative">
                     
                     {/* Adjuntar */}
                     <div className="flex items-center gap-2 pl-2">
@@ -410,7 +412,6 @@ export const PatientInputBar: React.FC<PatientInputBarProps> = ({
                                         }
                                     `}
                                 >
-                                    {/* 2. Reemplazamos SparklesIcon por QuillIcon (isotipo) */}
                                     <QuillIcon className="h-4 w-4"/>
                                     <span>
                                         {hasGeneratedNote 

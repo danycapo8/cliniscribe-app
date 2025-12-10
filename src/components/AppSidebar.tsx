@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
 import { 
   QuillIcon, ChevronLeftIcon, TrashIcon, 
-  LogOutIcon, UserIcon, NotesIcon 
+  LogOutIcon, UserIcon, NotesIcon, ShieldAlertIcon // <--- Importado el icono de Escudo
 } from './icons';
 import { ToolsMenu } from '../tools/ToolsMenu';
 import { ExtendedProfile } from '../App';
@@ -23,6 +23,8 @@ interface AppSidebarProps {
   onLoadHistoryNote: (note: any) => void;
   onClearHistory: () => void;
   onDeleteNote: (e: React.MouseEvent, id: string) => void;
+  // Prop opcional por si se decide usar en el futuro, pero no afecta funcionalidad actual
+  onAuditNote?: (note: any) => void; 
   t: (key: string) => string;
   session: Session | null;
 }
@@ -173,6 +175,18 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
 
             {/* FOOTER PROFILE */}
             <div className="p-3 border-t border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-[#02040a] shrink-0 z-40 flex flex-col gap-1">
+                
+                {/* --- NUEVO: BOTÓN SOLO PARA DIRECTORES (PASO 4B) --- */}
+                {profile.organizationRole === 'medical_director' && (
+                    <button
+                        onClick={() => window.location.href = '/director'}
+                        className="w-full mb-1 flex items-center justify-center gap-2 px-3 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl text-xs font-bold shadow-md hover:opacity-90 transition-all"
+                    >
+                        <ShieldAlertIcon className="h-4 w-4" />
+                        <span>Panel Director</span>
+                    </button>
+                )}
+
                 <div className="flex gap-1">
                     <button 
                         onClick={onOpenProfile} 

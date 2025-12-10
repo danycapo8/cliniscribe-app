@@ -38,3 +38,20 @@ export interface ClinicalSuggestion {
   rationale: string;
   guideline_reference?: string;
 }
+
+/**
+ * Helper de Validación (Arquitectura Defensiva)
+ * Convierte cualquier string (DB/API) a un tipo ConsultationModality seguro.
+ * Protege al Auditor Clínico de errores por datos corruptos o nulos.
+ */
+export function parseModality(value: string | undefined | null): ConsultationModality {
+  // Normalizamos el string para evitar errores por mayúsculas/minúsculas/espacios
+  const normalized = (value || '').toLowerCase().trim();
+  
+  if (normalized === 'telemedicine' || normalized === 'telemedicina' || normalized === 'teleconsulta') {
+    return 'telemedicine';
+  }
+  
+  // Valor por defecto seguro ("Fallback")
+  return 'in_person';
+}
