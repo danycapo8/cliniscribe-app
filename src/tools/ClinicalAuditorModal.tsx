@@ -204,11 +204,13 @@ export const ClinicalAuditorModal: React.FC<Props> = ({
 
                 await saveAuditLog({
                     organization_id: myOrg.organization_id,
-                    doctor_name_ocr: extractedDoctorName,
+                    doctor_name: extractedDoctorName, // Corregido nombre de campo
                     score: data.overallScore,
                     findings: data.findings.map(f => f.title),
+                    full_report: data, // IMPORTANTE: Guardamos el reporte completo con riskLevel
                     modality: auditModality,
-                    created_by: userData.user?.id
+                    created_by: userData.user?.id,
+                    file_name: 'Auditoría Manual' // Fallback
                 });
             }
         } catch (logError) {

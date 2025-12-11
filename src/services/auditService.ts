@@ -27,7 +27,9 @@ export async function runClinicalAudit(
   profile: Profile
 ): Promise<ClinicalAuditReport> {
   
-  const systemPrompt = getAuditorSystemInstruction(profile.country);
+  // Usamos el país del perfil o 'Chile' por defecto si no está definido
+  const country = profile.country || 'Chile';
+  const systemPrompt = getAuditorSystemInstruction(country);
   const userPrompt = getAuditorUserPrompt(noteContent, context, profile);
 
   try {
@@ -56,7 +58,7 @@ export async function runClinicalAudit(
     const jsonStr = cleanDeepSeekResponse(rawContent);
     const report: ClinicalAuditReport = JSON.parse(jsonStr);
     
-    // Timestamp
+    // Timestamp y consistencia
     report.evaluatedAt = new Date().toISOString();
     
     return report;
@@ -66,7 +68,8 @@ export async function runClinicalAudit(
     // Retornar objeto de error controlado para no romper la UI
     return {
       overallScore: 0,
-      summary: "No se pudo completar la auditoría técnica. Intente nuevamente.",
+      riskLevel: 'red', // Fallback seguro
+      summary: "No se pudo completar la auditoría técnica. Verifica tu conexión o intenta nuevamente.",
       findings: [
         {
           id: "err-1",

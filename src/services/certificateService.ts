@@ -1,6 +1,4 @@
-// src/services/certificateService.ts
-
-import { CertificateType, CertificateData, CertificateSubtype } from '../types/certificates';
+import { CertificateType, CertificateData } from '../types/certificates';
 import { Profile, ConsultationContext } from './types/gemini.types';
 
 type DeepSeekMessage = {
@@ -27,68 +25,70 @@ function buildSystemPrompt(
 ): string {
   const pronounText =
     pronoun === 'ella'
-      ? 'FEMENINO (La paciente / Interesada)'
-      : 'MASCULINO (El paciente / Interesado)';
+      ? 'FEMENINO (La paciente / Alumna)'
+      : 'MASCULINO (El paciente / Alumno)';
 
   let specificInstructions = "";
 
-  // LÓGICA DE CLASIFICACIÓN AVANZADA
-  if (type === 'reposo') {
+  // LÓGICA DE CLASIFICACIÓN INTELIGENTE
+  if (type === 'escolar') {
     specificInstructions = `
-    MODO: REPOSO MÉDICO (LICENCIA).
-    OBJETIVO: Justificar ausencia.
-    SUBTIPO: Por defecto "rest".
-    NOTA: Si el usuario menciona "reposo relativo" o "teletrabajo", clasifícalo en observaciones pero mantén la estructura de reposo.`;
-  } else if (type === 'escolar') {
-    specificInstructions = `
-    MODO: CERTIFICADO ESCOLAR. (CRÍTICO: CLASIFICAR CORRECTAMENTE)
-    Tu tarea principal es detectar la INTENCIÓN en el campo "certificateSubtype":
-    
-    1. "rest" (INASISTENCIA): Si dice "reposo", "no ir a clases", "licencia", "en casa".
-       -> Texto: "Debe guardar reposo en domicilio".
-       
-    2. "exemption" (EXENCIÓN FÍSICA): Si dice "puede ir a clases pero no gym", "eximir educación física", "reposo deportivo", "sin deportes".
-       -> Texto: "Puede asistir a clases, pero tiene contraindicación para Educación Física".
-       
-    3. "release" (ALTA/REINTEGRO): Si dice "alta", "volver a clases", "reintegro", "puede volver".
-       -> Texto: "Se encuentra en condiciones de reintegrarse".
-    
-    SI HAY AMBIGÜEDAD (Ej: "Volver a clases pero sin deporte"):
-    PRIORIZA "exemption". Es más importante decir que NO haga deporte a que vaya a clases (que es lo normal).`;
+    MODO: CERTIFICADO ESCOLAR INTELIGENTE.
+    TU TAREA PRINCIPAL ES CLASIFICAR EL "certificateSubtype" SEGÚN LA INSTRUCCIÓN DEL USUARIO:
+
+    1. SUBTIPO "rest" (AUSENCIA/REPOSO TOTAL):
+       - Gatillantes: "reposo en casa", "no ir a clases", "licencia", "enfermo en cama".
+       - Significado: El alumno NO asiste al colegio.
+
+    2. SUBTIPO "exemption" (EXENCIÓN DEPORTE / EDUCACIÓN FÍSICA):
+       - Gatillantes: "reposo deportivo", "no hacer educación física", "eximir de gym", "no deporte", "esguince".
+       - Significado: El alumno VA a clases teóricas, pero NO hace actividad física.
+       - ACCIÓN: En 'activity' pon "Educación Física y Deportes".
+
+    3. SUBTIPO "release" (ALTA / REINTEGRO):
+       - Gatillantes: "alta médica", "puede volver a clases", "reintegro escolar", "vuelve mañana".
+       - Significado: El alumno ya está sano y vuelve al colegio.
+
+    SI HAY DUDA ENTRE "IR A CLASES SIN DEPORTE" vs "NO IR A CLASES":
+    Si menciona "deportivo" o "física", SIEMPRE es "exemption".
+    `;
+  } else if (type === 'reposo') {
+    specificInstructions = `MODO: LICENCIA MÉDICA ADULTO. Subtipo: "rest".`;
   } else if (type === 'buena_salud') {
-    specificInstructions = `MODO: BUENA SALUD. Subtipo: "general". Frase: "Sin contraindicaciones evidentes".`;
+    specificInstructions = `MODO: BUENA SALUD. Subtipo: "general". Texto: "Sin contraindicaciones evidentes".`;
   } else if (type === 'alta_deportiva') {
-    specificInstructions = `MODO: ALTA DEPORTIVA. Subtipo: "release". Si hay restricciones, úsalas en observaciones.`;
+    specificInstructions = `MODO: ALTA DEPORTIVA. Subtipo: "release".`;
   } else if (type === 'aptitud_laboral') {
-    specificInstructions = `MODO: APTITUD LABORAL. Subtipo: "restriction" si hay limitaciones, o "general" si es apto total.`;
+    specificInstructions = `MODO: APTITUD LABORAL. Subtipo: "restriction" (si hay limites) o "general".`;
+  } else if (type === 'asistencia') {
+    specificInstructions = `MODO: ASISTENCIA. Subtipo: "general". Certifica presencia en consulta.`;
   }
 
   return `
 ROL: Auditor Médico y Redactor Legal (Chile/Latam).
 PAÍS: ${profile.country || 'Chile'}.
 PACIENTE: "${pronoun}" (${pronounText}).
-TIPO SOLICITADO: ${type.toUpperCase()}.
+TIPO: ${type.toUpperCase()}.
 
-INSTRUCCIONES DE LÓGICA:
+INSTRUCCIONES ESPECÍFICAS:
 ${specificInstructions}
 
 OUTPUT FORMAT (JSON ONLY):
 {
-  "diagnosis": "Diagnóstico técnico (CIE-10 idealmente)",
-  "justification": "Fundamento clínico breve",
+  "diagnosis": "Diagnóstico técnico (CIE-10 si es posible)",
+  "justification": "Fundamento clínico",
   "days": number | null,
   "startDate": "YYYY-MM-DD" | null,
-  "indications": "Indicaciones médicas",
-  "activity": "Actividad (ej: Clases de Educación Física, Trabajo)",
-  "observations": "Párrafo final de observaciones",
+  "indications": "Indicaciones médicas formales",
+  "activity": "Actividad restringida o permitida",
+  "observations": "Texto formal para el certificado",
   "certificateSubtype": "rest" | "exemption" | "release" | "restriction" | "general",
   "pronoun": "${pronoun}"
 }
 
-REGLAS DE ORO:
-1. **DETECTA EL SUBTIPO**: Si es Escolar y dice "no deporte", EL SUBTIPO ES "exemption".
-2. **NO CONTRADIGAS**: Si el subtipo es "exemption", el diagnóstico y observaciones deben ser coherentes (ej: "Esguince tobillo -> Puede ir a clases, no deporte").
-3. **FORMALIDAD**: Transforma "no hacer gym x 2 semanas" en "Se indica exención de actividades de Educación Física por un periodo de 14 días."
+REGLA DE ORO:
+- Transforma lenguaje coloquial ("no gym x 7 días") en lenguaje técnico ("Se indica exención de Educación Física por 7 días").
+- Si es "exemption", el diagnóstico debe justificar la falta de deporte (ej: Esguince).
 `.trim();
 }
 
@@ -114,12 +114,12 @@ function buildUserPrompt(
 "${userPrompt || 'Sin instrucciones adicionales.'}"
 
 [TAREA]
-Genera el JSON del certificado ${type}.
-Analiza la instrucción del médico para definir el "certificateSubtype" correcto.
+1. Analiza el INPUT para detectar si es Reposo Total, Exención Deportiva o Alta.
+2. Genera el JSON con el "certificateSubtype" correcto.
 `.trim();
 }
 
-// ... (callDeepSeekReasoner se mantiene igual) ...
+// ... (Resto de funciones callDeepSeekReasoner se mantienen igual, asegúrate de tenerlas)
 async function callDeepSeekReasoner(
   systemPrompt: string,
   userPrompt: string
@@ -177,7 +177,6 @@ export async function generateCertificateData(
     const jsonString = extractJSON(fullResponse);
     const parsed = JSON.parse(jsonString) as Partial<CertificateData>;
 
-    // Sanitización
     const result: CertificateData = {
       diagnosis: parsed.diagnosis || 'A completar',
       justification: parsed.justification || 'Evaluación clínica realizada.',
@@ -188,14 +187,13 @@ export async function generateCertificateData(
       patientName: parsed.patientName ?? null,
       patientId: parsed.patientId ?? null,
       observations: parsed.observations ?? null,
-      certificateSubtype: parsed.certificateSubtype || 'general', // Fallback seguro
+      certificateSubtype: parsed.certificateSubtype || 'general', // Fallback
       pronoun: resolvedPronoun
     };
 
     return result;
   } catch (e) {
     console.error('Error cert service:', e);
-    // Fallback básico en caso de error total
     return {
       diagnosis: 'A completar',
       justification: 'Evaluación clínica realizada.',

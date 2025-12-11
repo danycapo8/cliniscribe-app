@@ -1,5 +1,13 @@
 export type AuditSeverity = 'critical' | 'warning' | 'suggestion' | 'praise';
 export type AuditCategory = 'safety' | 'legal' | 'quality' | 'coherence';
+export type RiskLevel = 'green' | 'yellow' | 'red';
+export type LegalExposureLevel = 'low' | 'moderate' | 'high' | 'critical';
+
+export interface LegalExposure {
+  level: LegalExposureLevel;
+  riskFactors: string[];
+  defendibilityScore: number; // 0-100
+}
 
 export interface AuditFinding {
   id: string;
@@ -7,13 +15,16 @@ export interface AuditFinding {
   severity: AuditSeverity;
   title: string;
   description: string;
-  sectionReference?: string; // Ej: "Plan Terapéutico"
-  suggestedFix?: string; // Corrección sugerida (opcional)
+  sectionReference?: string;
+  suggestedFix?: string;
+  regulatoryContext?: string; // NUEVO: Referencia a la ley/norma
 }
 
 export interface ClinicalAuditReport {
   overallScore: number; // 0 a 100
-  summary: string;      // Resumen ejecutivo para el Director Médico
+  riskLevel: RiskLevel; // NUEVO: Semáforo
+  summary: string;      // Resumen ejecutivo
+  legalExposure?: LegalExposure; // NUEVO: Bloque de riesgo legal
   findings: AuditFinding[];
   evaluatedAt: string;
-}
+  }

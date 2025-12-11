@@ -1,21 +1,20 @@
 // src/types/certificates.ts
 
-// 1. AQUÍ AGREGAMOS 'asistencia' AL FINAL
 export type CertificateType = 
   | 'reposo' 
   | 'escolar' 
   | 'buena_salud' 
   | 'alta_deportiva' 
   | 'aptitud_laboral' 
-  | 'asistencia'; // <--- ESTO ES LO QUE FALTA
+  | 'asistencia'; // <--- ESTO ARREGLA EL ERROR ROJO DE LA IMAGEN
 
-// 2. Definimos los subtipos para la lógica inteligente
+// Definimos los subtipos lógicos
 export type CertificateSubtype = 
-  | 'rest'        
-  | 'exemption'   
-  | 'release'     
-  | 'restriction' 
-  | 'general';    
+  | 'rest'        // Reposo total (No va al colegio)
+  | 'exemption'   // Exención (Va a clases, pero no hace deporte)
+  | 'release'     // Alta / Reintegro (Vuelve a clases)
+  | 'restriction' // Restricción laboral
+  | 'general';    // Genérico
 
 export interface CertificateData {
   diagnosis: string;
@@ -28,6 +27,8 @@ export interface CertificateData {
   patientId?: string;
   observations?: string;
   pronoun?: 'el' | 'ella';
+  
+  // CAMPO CRÍTICO: Aquí la IA nos dirá qué tipo detectó
   certificateSubtype?: CertificateSubtype;
 }
 
@@ -38,7 +39,6 @@ export interface CertificateConfig {
   icon: string;
 }
 
-// 3. Agregamos la configuración visual para 'asistencia'
 export const CERTIFICATE_OPTIONS: CertificateConfig[] = [
   {
     type: 'reposo',

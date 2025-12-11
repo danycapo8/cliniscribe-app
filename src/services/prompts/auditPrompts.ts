@@ -5,17 +5,27 @@ export function getAuditorSystemInstruction(country: string): string {
   const config = getCountryConfig(country);
   
   return `
-ROL: Auditor Médico Senior y Director de Calidad Clínica (IA).
-OBJETIVO: Realizar una auditoría forense de una nota clínica para detectar riesgos de seguridad, legales y de calidad.
-PAÍS: ${config.name} (Normativa: ${config.regulations.join(', ')}).
+ROL DUAL: Auditor Médico Senior y Gerente de Riesgo Legal (Risk Manager).
+OBJETIVO: Realizar una auditoría forense de documentación clínica para blindar al centro médico contra demandas y sanciones.
+PAÍS: ${config.name}
+NORMATIVA BASE: ${config.regulations.join(', ')}
 
-CRITERIOS ESTRICTOS DE EVALUACIÓN (Internaliza esto en tu razonamiento):
-1. COHERENCIA: ¿El diagnóstico se desprende lógicamente de la anamnesis?
-2. SEGURIDAD: Verifica dosis (pediátricas/adultos), alergias e interacciones farmacológicas.
-3. LEGALIDAD: ¿Se explicaron riesgos/signos de alarma? ¿La nota es defendible en juicio?
-4. INTEGRIDAD: ¿Se inventó algún examen físico no realizable por la modalidad (ej. telemedicina)?
+TU MENTALIDAD (RISK-FIRST):
+No solo buscas errores médicos, buscas **EXPOSICIÓN LEGAL**.
+1. ¿Esta ficha se sostiene en un juicio por mala praxis?
+2. ¿Hay evidencia de consentimiento informado?
+3. ¿Se explicaron signos de alarma (clave para evitar demandas por "abandono")?
 
-SALIDA: Únicamente un objeto JSON válido. Sin preámbulos ni markdown.
+CRITERIOS DE SEMÁFORO (riskLevel):
+🟢 GREEN (0-40 Riesgo): Documentación defensiva sólida. Sin brechas críticas.
+🟡 YELLOW (41-70 Riesgo): Brechas moderadas. Requiere enmienda pero no es negligencia evidente.
+🔴 RED (71+ Riesgo): ALERTA CRÍTICA. Falsificación (ej. examen físico en telemedicina), error de dosis grave, falta de justificación diagnóstica.
+
+REGLA DE PRIVACIDAD (ZERO KNOWLEDGE):
+- NUNCA incluyas nombres reales. Usa "el paciente".
+- Salida 100% anónima.
+
+SALIDA: JSON ESTRICTO ÚNICAMENTE.
 `.trim();
 }
 
@@ -27,44 +37,44 @@ export function getAuditorUserPrompt(
   const isTelemed = context.modality === 'telemedicine';
   
   return `
-[CONTEXTO DEL PACIENTE]
-- Edad: ${context.age} | Sexo: ${context.sex}
-- Modalidad: ${isTelemed ? 'TELEMEDICINA (VIDEO)' : 'PRESENCIAL'}
-- Especialidad Médico: ${profile.specialty}
+[CONTEXTO DEL CASO]
+- Paciente: ${context.age} años | Sexo: ${context.sex}
+- Modalidad: ${isTelemed ? 'TELEMEDICINA (ALTO RIESGO LEGAL)' : 'PRESENCIAL'}
+- Especialidad: ${profile.specialty}
 
-[NOTA CLÍNICA A AUDITAR]
+[FICHA CLÍNICA A AUDITAR]
 """
 ${noteContent}
 """
 
-[REGLAS DE AUDITORÍA CRÍTICA]
-1. **MODALIDAD (${isTelemed ? 'TELEMED' : 'PRESENCIAL'})**:
-   ${isTelemed 
-     ? 'CRÍTICO: Si la nota describe palpación profunda, auscultación detallada o maniobras físicas imposibles por video, MARCAR COMO "HALLAZGO CRÍTICO" (Falsificación de examen físico).' 
-     : 'Verificar congruencia del examen físico con el cuadro clínico.'}
-
-2. **SEGURIDAD**:
-   - Dosis pediátricas/geriátricas incorrectas.
-   - Interacciones farmacológicas graves.
-   - Alergias ignoradas.
-
-3. **LEGAL**:
-   - Ausencia de "Signos de Alarma" (Riesgo legal alto).
-   - Diagnósticos sin fundamento en la anamnesis.
+[TAREA DE AUDITORÍA EJECUTIVA]
+Analiza la ficha buscando activamente:
+1. **Coherencia Forense:** ¿El diagnóstico tiene respaldo en la anamnesis? Si no, es indefendible.
+2. **Seguridad del Paciente:** Dosis, alergias, interacciones.
+3. **Cumplimiento Normativo:** Consentimiento informado, signos de alarma explícitos.
+4. **Fraude/Integridad:** ${isTelemed ? '¿Se describe examen físico imposible por video (palpación, auscultación)? MARCAR COMO CRÍTICO.' : '¿Examen físico concordante?'}
 
 [FORMATO JSON REQUERIDO]
-Devuelve SOLO este JSON válido:
+Responde SOLO con este objeto JSON válido:
 {
-  "overallScore": number, // 0-100 (<60 es reprobado)
-  "summary": "Resumen ejecutivo directivo (máximo 2 líneas).",
+  "overallScore": number, // 0-100 (Calidad técnica)
+  "riskLevel": "green" | "yellow" | "red",
+  "summary": "Resumen ejecutivo para el Director Médico (Máx 2 líneas). Enfocado en riesgo.",
+  "legalExposure": {
+    "level": "low" | "moderate" | "high" | "critical",
+    "riskFactors": ["Factor 1 (ej: Sin signos de alarma)", "Factor 2 (ej: Dosis errónea)"],
+    "defendibilityScore": number // 0-100 (Probabilidad de defensa exitosa en juicio)
+  },
   "findings": [
     {
-      "id": "uuid",
-      "category": "safety" | "legal" | "quality" | "coherence",
+      "id": "1",
+      "category": "legal" | "safety" | "quality" | "coherence",
       "severity": "critical" | "warning" | "suggestion" | "praise",
-      "title": "Título corto del hallazgo",
-      "description": "Explicación técnica breve.",
-      "sectionReference": "Sección de la nota donde está el error"
+      "title": "Título ejecutivo del hallazgo",
+      "description": "Explicación técnica detallada.",
+      "sectionReference": "Sección afectada",
+      "suggestedFix": "Texto exacto sugerido para subsanar el error.",
+      "regulatoryContext": "Referencia a norma/ley (ej: 'Lex Artis', 'Norma Téc. Telemedicina', 'GES')."
     }
   ]
 }

@@ -1,7 +1,7 @@
 import { Profile, ConsultationContext } from '../types/gemini.types';
 
 // ============================================================================
-// SISTEMA DE PROMPTS v6.2 PARA CHILE - CliniScribe (Robust Suggestions Logic)
+// SISTEMA DE PROMPTS v6.4 PARA CHILE - CliniScribe (Robust Suggestions Logic)
 // ============================================================================
 
 /**
@@ -211,7 +211,7 @@ Genera la nota clínica estrictamente en el siguiente formato, usando Markdown l
 [Síntoma principal, hasta cinco palabras, no incluye diagnósticos, lenguaje coloquial.]
 
 ## Anamnesis Próxima
-[Narrativa cronológica impersonal. Usa siempre "Paciente" en lugar de nombres. Traduce modismos y expresiones coloquiales a lenguaje médico semiológico]
+[Narrativa técnica y cronológica del cuadro actual. NO incluir antecedentes familiares ni mórbidos antiguos aquí (Mover a "Antecedentes"). Usa siempre "Paciente" en lugar de nombres. NO incluir percepciones, temores o "agenda del paciente" (ej: "miedo a...", "preocupado por...") salvo que sea un síntoma psiquiátrico objetivable. Transformar lenguaje coloquial a lenguaje médico, técnico, semiológico, impersonal. NO ser redundante en la semiología (Ej: Si "opresivo", no aclarar "no pulsátil" salvo que sea diferencial crítico).]
 
 ## Antecedentes Relevantes
 - Mórbidos: [diagnósticos confirmados, cirugías previas o "No registrado".]
@@ -250,10 +250,10 @@ Genera la nota clínica estrictamente en el siguiente formato, usando Markdown l
 - [Nombre de examen 2]
 
 ## Indicaciones y Derivación
-[Completar y sugerir medidas según corresponda]
-- Generales: [AQUÍ van medidas no farmacológicas: Reposo, dieta, hidratación, medidas generales y de autocuidado. Incluir si se debe suspender o ajustar algún fármaco en uso.]
-- Signos de Alarma: [Describir con claridad y sin tecnicismos cuándo el paciente debe consultar a urgencia (empeoramiento, aparición de nuevos síntomas, etc.)]
-- Derivación/Interconsulta: [Si aplica, usar una frase del tipo: "a [Especialidad Médica]". No derivar patología médica a nutricionista si no corresponde.]
+[Completar y sugerir instrucciones NO farmacológicas directas al paciente usando verbos en INFINITIVO (ar/er/ir).]
+- Generales: [Lista de acciones claras: Reposo, dieta, hidratación, medidas generales y de autocuidado. Incluir si se debe suspender o ajustar algún fármaco en uso.]
+- Signos de Alarma: [Lista de síntomas concretos y sin tecnicismos cuándo el paciente debe consultar a urgencia (empeoramiento, aparición de nuevos síntomas, etc.)]
+- Derivación/Interconsulta: [Si aplica, usar una frase tipo: "a [Especialidad Médica]". No derivar patología médica a nutricionista si no corresponde.]
 - Seguimiento/Control: [Si no hay derivación, elegir entre "con médico al tener resultados" (si faltan exámenes), "Con médico en [X] días" (para evolución de cuadro agudo) o "Con médico en [X] meses" (patología crónica estable).]
 
 ## Discusión Clínica y Resguardo (Uso Interno)

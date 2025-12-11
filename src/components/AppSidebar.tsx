@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
 import { 
   QuillIcon, ChevronLeftIcon, TrashIcon, 
-  LogOutIcon, UserIcon, NotesIcon, ShieldAlertIcon // <--- Importado el icono de Escudo
+  LogOutIcon, UserIcon, ShieldAlertIcon 
 } from './icons';
 import { ToolsMenu } from '../tools/ToolsMenu';
 import { ExtendedProfile } from '../App';
@@ -23,7 +23,6 @@ interface AppSidebarProps {
   onLoadHistoryNote: (note: any) => void;
   onClearHistory: () => void;
   onDeleteNote: (e: React.MouseEvent, id: string) => void;
-  // Prop opcional por si se decide usar en el futuro, pero no afecta funcionalidad actual
   onAuditNote?: (note: any) => void; 
   t: (key: string) => string;
   session: Session | null;
@@ -53,13 +52,11 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
 
   // Manejador del Tooltip
   const handleMouseEnter = (e: React.MouseEvent, text: string) => {
-    // FIX 1: Deshabilitar tooltips en móvil (< 768px)
     if (window.innerWidth < 768) return;
 
     const rect = e.currentTarget.getBoundingClientRect();
     setTooltipData({
       text,
-      // FIX 2: Posicionar ARRIBA del botón (top ajustado + lógica en render)
       top: rect.top - 8, 
       left: rect.left + (rect.width / 2) 
     });
@@ -89,17 +86,30 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             {/* BODY SIDEBAR */}
             <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col relative">
                 
-                {/* BOTÓN NUEVA NOTA */}
-                <div className="p-3 pb-2 sticky top-0 bg-white dark:bg-[#02040a] z-30 shadow-[0_4px_10px_-4px_rgba(0,0,0,0.05)] dark:shadow-none">
+                {/* ZONA DE ACCIONES PRINCIPALES (STICKY) */}
+                <div className="p-3 pb-2 sticky top-0 bg-white dark:bg-[#02040a] z-30 shadow-[0_4px_10px_-4px_rgba(0,0,0,0.05)] dark:shadow-none space-y-2">
+                    
+                    {/* 1. BOTÓN NUEVA NOTA (CLÍNICO) */}
                     <button 
                         onClick={() => {
                             onNewNote();
-                            // FIX 3: Cerrar sidebar automáticamente en móvil
                             if (window.innerWidth < 768) onClose();
                         }} 
                         className="w-full py-2.5 px-4 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:opacity-90 shadow-md hover:shadow-lg flex items-center justify-center gap-2 text-sm font-bold transition-all group"
                     >
+                        <QuillIcon className="h-4 w-4" />
                         <span>{t('new_note_button')}</span>
+                    </button>
+
+                    {/* 2. BOTÓN PANEL DIRECTOR (VISIBLE SIEMPRE AHORA) */}
+                    <button 
+                        onClick={() => {
+                            window.location.href = '/director';
+                        }} 
+                        className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 shadow-md hover:shadow-lg flex items-center justify-center gap-2 text-sm font-bold transition-all group border-t border-white/10"
+                    >
+                        <ShieldAlertIcon className="h-4 w-4" />
+                        <span>Panel de Dirección</span>
                     </button>
                 </div>
                 
@@ -175,18 +185,6 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
 
             {/* FOOTER PROFILE */}
             <div className="p-3 border-t border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-[#02040a] shrink-0 z-40 flex flex-col gap-1">
-                
-                {/* --- NUEVO: BOTÓN SOLO PARA DIRECTORES (PASO 4B) --- */}
-                {profile.organizationRole === 'medical_director' && (
-                    <button
-                        onClick={() => window.location.href = '/director'}
-                        className="w-full mb-1 flex items-center justify-center gap-2 px-3 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl text-xs font-bold shadow-md hover:opacity-90 transition-all"
-                    >
-                        <ShieldAlertIcon className="h-4 w-4" />
-                        <span>Panel Director</span>
-                    </button>
-                )}
-
                 <div className="flex gap-1">
                     <button 
                         onClick={onOpenProfile} 
@@ -205,7 +203,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                             <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">
                                 {profile.fullName || 'Doctor'}
                             </p>
-                            <p className="text-[10px] text-slate-500 truncate flex items-center gap-1">
+                            <p className="text-xs text-slate-500 truncate flex items-center gap-1">
                             {profile.subscription_tier === 'pro' ? '⭐ Plan MAX' : profile.subscription_tier === 'basic' ? '⚡ Profesional' : 'Plan Gratuito'}
                             </p>
                         </div>
@@ -233,11 +231,9 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             style={{ 
                 top: `${tooltipData.top}px`, 
                 left: `${tooltipData.left}px`,
-                // FIX 2.1: Transformar para subir 100% (arriba del botón) y centrar horizontalmente
                 transform: 'translate(-50%, -100%)' 
             }}
         >
-            {/* Flechita apuntando hacia ABAJO (border-top coloreado) */}
             <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#0f172a]"></div>
             {tooltipData.text}
         </div>,

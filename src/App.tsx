@@ -17,8 +17,7 @@ import {
 } from './services/geminiService';
 import { 
   SpinnerIcon, CopyIcon, FileDownIcon, SparklesIcon, 
-  CheckCircleIcon, NotesIcon, UserIcon, XIcon, MoonIcon, SunIcon,
-  ActivityIcon 
+  CheckCircleIcon, NotesIcon, UserIcon, XIcon, MoonIcon, SunIcon
 } from './components/icons';
 import { translations, Language } from './translations';
 import { useAudioLevel } from './hooks/useAudioLevel';
@@ -27,6 +26,8 @@ import { checkQuota, registerUsage } from './services/usageService';
 import { SubscriptionTier, PLAN_LIMITS } from './types/subscription';
 import { transcribeAudioWithGroq } from './services/transcriptionService';
 import { CertificateType } from './types/certificates';
+// [MODIFICADO] Imports
+import { DirectorDashboard } from './components/director/DirectorDashboard';
 
 // --- COMPONENTES UI ---
 import { Button } from './components/Button';
@@ -34,7 +35,6 @@ import { FeedbackWidget } from './components/FeedbackWidget';
 import Login from './components/Login';
 import { LimitModal } from './components/LimitModal';
 import { CertificateModal } from './tools/CertificateModal';
-import { ClinicalAuditorModal } from './tools/ClinicalAuditorModal'; 
 import { SubscriptionDashboard } from './components/SubscriptionDashboard';
 import { OnboardingModal } from './components/OnboardingModal';
 import { AppSidebar } from './components/AppSidebar';
@@ -45,8 +45,6 @@ import { TermsModal, CURRENT_TERMS_VERSION } from './components/TermsModal';
 import { TermsContent } from './components/legal/TermsContent';
 import { PrivacyContent } from './components/legal/PrivacyContent';
 import { ProvidersPage } from './components/ProvidersPage';
-// PASO 4A: Importar el Dashboard del Director
-import { DirectorDashboard } from './components/director/DirectorDashboard';
 
 // --- NUEVOS COMPONENTES (ACORDEONES Y ALERTAS) ---
 import { ClinicalNoteViewer } from './components/ClinicalNoteViewer';
@@ -81,7 +79,6 @@ const cleanTextForExport = (text: string): string => {
         .trim();
 };
 
-// PASO 3A: Actualizar interfaz del Perfil
 export interface ExtendedProfile extends Profile {
     fullName?: string;
     title?: string;
@@ -91,9 +88,8 @@ export interface ExtendedProfile extends Profile {
     notes_usage_count?: number;
     current_period_end?: string;
     terms_accepted_at?: string; 
-    terms_version?: string;     
-    // Nuevo campo para el rol organizacional
-    organizationRole?: 'medical_director' | 'doctor' | null;
+    terms_version?: string;
+    // Eliminado organizationRole para limpiar lógica de join
 }
 
 interface HistoricalNote { id: string; timestamp: number; context: ConsultationContext; profile: Profile; note: string; alerts: ClinicalAlert[]; }
@@ -110,7 +106,7 @@ interface UploadedFile {
 const PublicLegalPage: React.FC<{ type: 'terms' | 'privacy' }> = ({ type }) => {
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-[#0f1115] flex justify-center py-10 px-4">
-            <div className="w-full max-w-4xl bg-white dark:bg-[#1e293b] p-8 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800">
+            <div className="w-full max-w-4xl bg-white dark:bg-[#1e293b] p-8 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700">
                 <div className="mb-6 pb-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
                     <h1 className="text-2xl font-black text-slate-900 dark:text-white">
                         {type === 'terms' ? 'Términos y Condiciones' : 'Política de Privacidad'}
@@ -141,6 +137,8 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
   };
   
   const [profile, setProfile] = useState<ExtendedProfile>(defaultProfile);
+  // [LIMPIEZA] Eliminado estado de organización que causaba errores
+
   const [editingProfile, setEditingProfile] = useState<ExtendedProfile>(defaultProfile);
   const [showProfile, setShowProfile] = useState(false);
   const [profileTab, setProfileTab] = useState<'subscription' | 'profile'>('subscription');
@@ -158,7 +156,7 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   const [autoSuggestEnabled, setAutoSuggestEnabled] = useState(false);
-  const [activeTool, setActiveTool] = useState<{type: 'certificate', subType: CertificateType} | null>(null);
+  const [activeTool, setActiveTool] = useState<{type: string, subType?: any} | null>(null);
 
   const [subscription, setSubscription] = useState({ tier: 'free' as SubscriptionTier, count: 0, limit: 20, loading: true });
   const [context, setContext] = useState<ConsultationContext>({ age: '', sex: '', modality: 'in_person', additionalContext: '' });
@@ -169,10 +167,6 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
   const [alerts, setAlerts] = useState<ClinicalAlert[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
-  // --- ESTADOS AUDITOR CLÍNICO ---
-  const [showAuditor, setShowAuditor] = useState(false);
-  const [noteToAudit, setNoteToAudit] = useState<{content: string, context: ConsultationContext} | null>(null);
-
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth >= 768); 
   
   useEffect(() => {
@@ -208,7 +202,6 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
   
   useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
 
-  // --- CONFIGURACIÓN DE SUGERENCIAS EN VIVO (30 SEGUNDOS) ---
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
@@ -255,17 +248,6 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
     else root.classList.add('light');
   }, [profile.theme]);
 
-  // --- HANDLER AUDITOR CLÍNICO ---
-  const handleOpenAudit = (noteContent: string, noteContext: ConsultationContext) => {
-    // Gatekeeper de Plan MAX
-    if (profile.subscription_tier !== 'pro') {
-      setShowLimitModal(true);
-      return;
-    }
-    setNoteToAudit({ content: noteContent, context: noteContext });
-    setShowAuditor(true);
-  };
-
   const handleSubscriptionPlanSelect = (planId: string) => {
       if (!session?.user) return;
       const LS_VARIANTS: Record<string, string> = {
@@ -294,9 +276,13 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
     hasShownOnboarding.current = false;
   };
 
+  // [LIMPIEZA] Carga de datos simplificada, sin llamadas a organizaciones que fallen
   const loadUserData = async (userId: string, meta: any) => {
       recordLogin(userId).catch(e => console.warn("Login record failed", e));
+      
+      // Solo cargamos el perfil básico
       await fetchProfile(userId, meta);
+
       setHistory([]); 
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('onboarding') === 'true') {
@@ -357,17 +343,6 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
               setShowOnboarding(false);
           }
       } else if (meta && meta.full_name) profileUpdate.fullName = meta.full_name;
-      
-      // PASO 3B: Detectar Rol de Director desde la base de datos
-      let orgRole: 'medical_director' | 'doctor' | null = null;
-      const { data: orgData } = await supabase
-          .from('organization_members')
-          .select('role')
-          .eq('user_id', userId)
-          .maybeSingle();
-      
-      if (orgData) orgRole = orgData.role as 'medical_director' | 'doctor';
-      profileUpdate.organizationRole = orgRole;
       
       if (meta && meta.avatar_url) profileUpdate.avatarUrl = meta.avatar_url;
       setProfile(prev => ({ ...prev, ...profileUpdate }));
@@ -447,6 +422,7 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
 
   const handleNewNote = () => {
       const hasUnsavedInput = (transcript.trim().length > 0 || doctorNotes.trim().length > 0 || uploadedFiles.length > 0);
+      
       if (hasUnsavedInput && !generatedNote) {
           setConfirmModal({ isOpen: true, type: 'new_note' });
       } else {
@@ -466,19 +442,7 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
   const handleToolSelect = async (toolId: string, subType?: any) => {
       const hasAccess = await verifyQuotaAccess();
       if (!hasAccess) return;
-      
-      if (toolId === 'certificate') {
-          setActiveTool({ type: 'certificate', subType });
-      }
-
-      if (toolId === 'alert_analysis') {
-          if (profile.subscription_tier !== 'pro') {
-              setShowLimitModal(true);
-              return;
-          }
-          setNoteToAudit({ content: '', context: context });
-          setShowAuditor(true);
-      }
+      if (toolId === 'certificate') setActiveTool({ type: 'certificate', subType });
   };
 
   const handleFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -720,7 +684,7 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
           setHistory(prev => prev.filter(n => n.id !== confirmModal.itemId)); 
           if (viewingHistoryNoteId === confirmModal.itemId) { setGeneratedNote(''); setAlerts([]); setViewingHistoryNoteId(null); }
           await supabase.from('usage_logs').delete().eq('id', confirmModal.itemId);
-      } else if (confirmModal?.type === 'new_note') { // MODIFICADO: Manejo de nueva nota
+      } else if (confirmModal?.type === 'new_note') { 
           performReset();
       }
       setConfirmModal({ isOpen: false, type: null });
@@ -820,7 +784,10 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
             isOpen={isSidebarOpen}
             onClose={() => setIsSidebarOpen(false)}
             onNewNote={handleNewNote}
-            onSelectTool={handleToolSelect}
+            // [MODIFICADO] Interceptor para herramientas normales
+            onSelectTool={(toolId, subType) => {
+                handleToolSelect(toolId, subType);
+            }}
             profile={profile}
             onOpenProfile={() => { setEditingProfile({...profile}); setProfileTab('subscription'); setShowProfile(true); }}
             onLogout={handleLogoutClick}
@@ -828,6 +795,7 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
             viewingHistoryNoteId={viewingHistoryNoteId}
             onLoadHistoryNote={(note) => { 
                 if (!note) return;
+                setActiveTool(null); // Reseteamos herramienta activa al cargar historial
                 setContext(note.context || { age: '', sex: '', modality: 'in_person', additionalContext: '' }); 
                 setGeneratedNote(note.note || 'Nota no disponible'); 
                 setAlerts(note.alerts || []); 
@@ -839,8 +807,6 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
             }}
             onClearHistory={handleClearHistory}
             onDeleteNote={handleDeleteNote}
-            // @ts-ignore - Pasamos la función aunque la interfaz del componente hijo no esté actualizada aún
-            onAuditNote={(note: HistoricalNote) => handleOpenAudit(note.note, note.context)}
             t={t}
             session={session}
         />
@@ -864,17 +830,6 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
                         <Button variant="ghost" size="sm" onClick={() => navigator.clipboard.writeText(cleanTextForExport(generatedNote))} icon={<CopyIcon className="h-3 w-3"/>}><span className="hidden sm:inline">Copiar</span></Button>
                         <Button variant="ghost" size="sm" onClick={handleExportWord} icon={<FileDownIcon className="h-3 w-3"/>}><span className="hidden sm:inline">Word</span></Button>
                         <Button variant="ghost" size="sm" onClick={exportToPDF} icon={<FileDownIcon className="h-3 w-3"/>}><span className="hidden sm:inline">PDF</span></Button>
-                        
-                        {/* NUEVO BOTÓN AUDITOR (MOVIDO A LA DERECHA DE PDF) */}
-                        <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => handleOpenAudit(generatedNote, context)}
-                            className="text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border-indigo-200 dark:bg-indigo-900/20 dark:text-indigo-300 dark:border-indigo-800"
-                            icon={<ActivityIcon className="h-3 w-3"/>}
-                        >
-                            <span className="hidden sm:inline font-bold">Auditar (IA)</span>
-                        </Button>
                     </>
                 )}
             </div>
@@ -882,6 +837,7 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
 
         <div ref={scrollRef} className={`flex-grow overflow-y-auto custom-scrollbar px-4 pt-8 scroll-smooth w-full ${viewingHistoryNoteId ? 'pb-8' : 'pb-40'}`}>
             
+            {/* [MODIFICADO] Eliminada la renderización condicional de DirectorDashboard aquí */}
             {generatedNote ? (
                 <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-8 duration-500 pb-20">
                      
@@ -933,6 +889,7 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
             )}
         </div>
 
+        {/* Solo mostramos la barra de input si NO estamos viendo una nota generada ni historial */}
         {!viewingHistoryNoteId && (
             <PatientInputBar 
                 context={context} setContext={setContext}
@@ -1133,17 +1090,6 @@ const CliniScribeWorkspace: React.FC<{ session: Session }> = ({ session }) => {
         />
       )}
 
-      {/* MODAL AUDITOR CLÍNICO IA (INCLUYE MODO UPLOAD) */}
-      {showAuditor && noteToAudit && (
-        <ClinicalAuditorModal 
-            isOpen={showAuditor}
-            onClose={() => setShowAuditor(false)}
-            noteContent={noteToAudit.content} // Si es '', el modal muestra Upload
-            context={noteToAudit.context}
-            profile={profile}
-        />
-      )}
-
       <LimitModal 
         isOpen={showLimitModal} 
         onClose={() => setShowLimitModal(false)}
@@ -1224,19 +1170,21 @@ const AppRoutes = () => {
                 </RequireAuth>
             } />
 
+            {/* [MODIFICADO] RUTA 4: Panel Director (Protegida) */}
+            {/* Se renderiza en pantalla completa fuera del layout del workspace */}
+            <Route path="/director" element={
+                <RequireAuth session={session}>
+                    {/* Pasamos session directamente como pide el componente */}
+                    <DirectorDashboard session={session} />
+                </RequireAuth>
+            } />
+
             {/* RUTAS LEGALES PÚBLICAS */}
             <Route path="/terms" element={<PublicLegalPage type="terms" />} />
             <Route path="/privacy" element={<PublicLegalPage type="privacy" />} />
 
             {/* NUEVA RUTA PARA PRESTADORES */}
             <Route path="/providers" element={<ProvidersPage />} />
-
-            {/* PASO 4B: RUTA DIRECTOR */}
-            <Route path="/director" element={
-                <RequireAuth session={session}>
-                    <DirectorDashboard />
-                </RequireAuth>
-            } />
 
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
